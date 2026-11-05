@@ -11,12 +11,18 @@ const { createAgentImageTools } = require("./tools/agent-images.js");
 const { createImageResultExporter } = require("./lib/image-result-export.js");
 const { keys, assert } = require("./lib/media-provider-schema.js");
 const { resourceErrorDetails } = require("./lib/comfy-resource-errors.js");
+const { createAudioGeneration } = require("./lib/audio-generation.js");
+const { createGenerationBudget } = require("./lib/media-generation.js");
+const { createAgentAudioService } = require("./lib/agent-audio-service.js");
+const { createAgentAudioTools } = require("./tools/agent-audio.js");
+const { createAudioResultExporter } = require("./lib/audio-result-export.js");
+const { createGenerationRecords } = require("./lib/generation-records.js");
 const COMMAND_ID = "bone.aimedia.services.open";
 const VIEW_ID = "settings";
 function error(code, message) { return Object.assign(new Error(message), { code }); }
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
-let settings = null, images = null, agentImages = null;
-let version = "0.4.3";
+let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, records = null;
+let version = "0.5.0";
 let registered = [];
 let registrationErrors = [];
 function safeFailure(failure) {
@@ -34,13 +40,13 @@ function safeFailure(failure) {
     CREDENTIAL_UNAVAILABLE: "当前系统无法使用插件密钥存储；此版本支持 macOS 钥匙串，原配置已保留。",
     CREDENTIAL_ERROR: "密钥无法安全保存或恢复，请检查登录钥匙串是否解锁、允许访问；原配置已保留。",
     CREDENTIAL_LEGACY: "配置使用旧版宿主加密格式，需要原加密环境才能恢复；原文件已保留。",
-    GENERATION_UNSUPPORTED: "请选择已配置的 GPT 图片模型；当前仅支持 GPT 文生图。",
-    GENERATION_BUSY: "已有图片任务正在生成，请等待后再提交。",
-    GENERATION_LIMIT: "本地生图记录已达到容量上限，未提交新的生成请求。",
+    GENERATION_UNSUPPORTED: "请选择已配置的 GPT 图片或 MiniMax 语音模型；当前不支持环境音效。",
+    GENERATION_BUSY: "已有生成任务占用并发名额，请等待后再提交。",
+    GENERATION_LIMIT: "本地生成记录已达到容量上限，未提交新的生成请求。",
     GENERATION_UNKNOWN: "生成结果尚不确定，请先检查供应商记录，勿直接重复生成。",
     GENERATION_REQUEST_CONFLICT: "任务参数与已准备请求不一致，请重新核对。",
-    RESULT_INVALID: "图片校验未通过，未作为成功结果保存。",
-    RESULT_UNAVAILABLE: "当前没有可读取的 PNG 结果。",
+    RESULT_INVALID: "媒体文件校验未通过，未作为成功结果保存。",
+    RESULT_UNAVAILABLE: "当前没有可读取的媒体结果。",
     CREDENTIAL_REQUIRED: "请先保存所选服务的 API Key。",
   };
   if (!Object.hasOwn(messages, failure?.code) && resourceErrorDetails(failure).code === failure?.code) {
@@ -59,15 +65,32 @@ async function imageAccess(method, payload) {
   if (!current) throw error("UNAVAILABLE", "生图服务尚未加载。");
   try { return await current[method](payload); } catch (failure) { throw safeFailure(failure); }
 }
+async function audioAccess(method, payload) {
+  const current = audio;
+  if (!current) throw error("UNAVAILABLE", "语音服务尚未加载。");
+  try { return await current[method](payload); } catch (failure) { throw safeFailure(failure); }
+}
+async function recordsAccess(method, payload) {
+  const current = records;
+  if (!current) throw error("UNAVAILABLE", "生成记录尚未加载。");
+  try { return await current[method](payload); } catch (failure) { throw safeFailure(failure); }
+}
+async function agentAudioAccess(method, payload, ctx) {
+  const current = agentAudio;
+  if (!current) throw error("DISPOSED", "Agent audio service is not loaded.");
+  return current[method](payload, ctx);
+}
 async function agentAccess(method, payload, ctx) {
   const current = agentImages;
   if (!current) throw error("DISPOSED", "Agent image service is not loaded.");
   return current[method](payload, ctx);
 }
-const tools = [...createDiscoveryTools({ read: () => access("read"), getVersion: () => version }), ...createImageTools({ access: imageAccess }), ...createAgentImageTools({ access: agentAccess })];
+const tools = [...createDiscoveryTools({ read: () => access("read"), getVersion: () => version }), ...createImageTools({ access: imageAccess }), ...createAgentImageTools({ access: agentAccess }), ...createAgentAudioTools({ access: agentAudioAccess })];
 async function clearRuntime() {
-  const old = settings, oldImages = images, oldAgent = agentImages; settings = null; images = null; agentImages = null;
-  oldAgent?.dispose(); await oldImages?.dispose(); await old?.dispose();
+  const old = settings, oldImages = images, oldAgent = agentImages, oldAudio = audio, oldAgentAudio = agentAudio;
+  settings = null; images = null; agentImages = null; audio = null; agentAudio = null; records = null;
+  oldAgent?.dispose(); oldAgentAudio?.dispose();
+  try { await Promise.all([oldImages?.dispose(), oldAudio?.dispose()]); } finally { await old?.dispose(); }
   if (typeof pi.agent?.unregisterTool === "function") {
     for (const name of registered) {
       try { await pi.agent.unregisterTool(name); } catch { registrationErrors.push(`无法注销工具：${name}`); }
@@ -85,9 +108,12 @@ async function onLoad() {
     return pi.net.fetch(input);
   };
   settings = createMediaProviderSettings({ getDataPath: () => dataPath, secrets: createSecrets({ getDataPath: () => dataPath }), request });
-  images = createImageGeneration({ getDataPath: () => dataPath, settings, request });
-  const exporter = createImageResultExporter({ host: pi, readResult: images.resultBytes });
-  agentImages = createAgentImageService({ settings, images, exporter });
+  const budget = createGenerationBudget(2);
+  images = createImageGeneration({ getDataPath: () => dataPath, settings, request, budget });
+  audio = createAudioGeneration({ getDataPath: () => dataPath, settings, request, budget });
+  agentImages = createAgentImageService({ settings, images, exporter: createImageResultExporter({ host: pi, readResult: images.resultBytes }) });
+  agentAudio = createAgentAudioService({ settings, audio, exporter: createAudioResultExporter({ host: pi, readResult: audio.resultBytes }) });
+  records = createGenerationRecords({ images, audio });
   await pi.commands.register({ id: COMMAND_ID, title: "Bone AI 媒体服务: 打开配置", keywords: ["bone", "aimedia", "媒体", "图片", "视频", "配音"],
     run: async () => pi.ui.revealView({ viewId: VIEW_ID }) });
   if (typeof pi.agent?.registerTool !== "function") registrationErrors.push("宿主未提供 Agent 工具注册能力。");
@@ -102,6 +128,14 @@ async function onUnload() {
 }
 async function dispatchPanel(channel, payload) {
   switch (channel) {
+    case "aimedia.audio.prepare": return audioAccess("prepare", payload);
+    case "aimedia.audio.submit": return audioAccess("submit", payload);
+    case "aimedia.audio.get": return audioAccess("get", payload);
+    case "aimedia.audio.list": return audioAccess("list", payload);
+    case "aimedia.audio.read": return audioAccess("readResult", payload);
+    case "aimedia.records.list": return recordsAccess("list", payload);
+    case "aimedia.records.get": return recordsAccess("get", payload);
+    case "aimedia.records.read": return recordsAccess("read", payload);
     case "aimedia.image.prepare": return imageAccess("prepare", payload);
     case "aimedia.image.submit": return imageAccess("submit", payload);
     case "aimedia.image.get": return imageAccess("get", payload);

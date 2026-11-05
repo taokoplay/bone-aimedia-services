@@ -1,20 +1,10 @@
 "use strict";
-const { toolReply } = require("../lib/agent-image-result.js");
-const { ImageExportError } = require("../lib/image-result-export.js");
-const SAFE_ERRORS = new Set(["INVALID_ARGUMENT", "CONFLICT", "NOT_FOUND", "DISABLED", "DISPOSED", "PERMISSION_DENIED", "AGENT_CONTEXT_REQUIRED", "CONTEXT_REQUIRED", "TOOL_ABORTED", "ABORTED", "GENERATION_REQUEST_CONFLICT", "GENERATION_BUSY", "GENERATION_LIMIT", "GENERATION_UNSUPPORTED", "CREDENTIAL_REQUIRED", "CREDENTIAL_UNAVAILABLE", "CREDENTIAL_ERROR", "CREDENTIAL_LEGACY", "RESULT_UNAVAILABLE", "RESULT_INVALID", "STORAGE_ERROR", "EXPORT_UNAVAILABLE", "EXPORT_FAILED", "EXPORT_CONFLICT", "WORKSPACE_CHANGED", "WORKSPACE_REQUIRED", "NO_WORKSPACE"]);
+const { agentExecute, schema } = require("./agent-execute.js");
 function createAgentImageTools({ access }) {
-  const schema = (properties, required) => ({ type: "object", properties, required, additionalProperties: false });
-  const execute = method => async (input, ctx) => {
-    try { return await access(method, input, ctx); }
-    catch (error) {
-      const code = SAFE_ERRORS.has(error?.code) ? error.code : "UNAVAILABLE";
-      const recovery = error instanceof ImageExportError && error.recovery ? structuredClone(error.recovery) : undefined;
-      return { ...toolReply({ ok: false, error: { code }, ...(recovery ? { recovery } : {}), nextAction: "Inspect the same request/job; do not blindly create another billable request." }), isError: true };
-    }
-  };
+  const execute = agentExecute(access);
   return [
     { name: "media_catalog", risk: "low", planSafeActions: ["list"],
-      description: "查询本插件已配置的媒体模型、稳定 modelRef、默认项、参数范围与不可用原因。Agent 生图先调用此工具。只读、不联网、不返回密钥；配置可用不等于供应商实测通过。",
+      description: "查询本插件已配置的媒体模型、稳定 modelRef、默认项、参数范围与不可用原因。Agent 生图或语音生成先调用此工具。只读、不联网、不返回密钥；配置可用不等于供应商实测通过。",
       schema: schema({ action: { type: "string", enum: ["list"] }, kind: { type: "string", enum: ["image", "video", "audio"] } }, ["action"]), execute: execute("catalog") },
     { name: "generate_image", risk: "high",
       description: "按用户已授权的要求，用已配置 GPT 模型生成一张 PNG。可能收费；无需面板。modelRef 可指定模型，省略按会话选择、默认、唯一候选解析。相同 requestKey 重试不重复生成。新提交保持调用直到请求结束（网络上限90秒）并保存结果；waitMs 仅用于已有任务的本地等待。完成返回图片，否则返回原任务状态，unknown 不得盲目新建重试。",

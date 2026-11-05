@@ -17,7 +17,7 @@ const os = require("node:os");
   const plugin = require(path.join(root, "main.js"));
   try {
     await plugin.onLoad();
-    if (tools.size !== 12) throw Error("Expected eight compatible tools and four Agent-first image tools");
+    if (tools.size !== 16) throw Error("Expected twelve compatible tools and four audio workflow tools");
     const descriptors = [...tools.values()].map(({ name, risk, description, schema, planSafeActions }) => ({ name, risk, description, schema, ...(planSafeActions ? { planSafeActions } : {}) }));
     const match = JSON.stringify(descriptors) === JSON.stringify(manifest.contributes.agentTools);
     if (mode === "--check" && !match) throw Error("Manifest tool declarations drifted");

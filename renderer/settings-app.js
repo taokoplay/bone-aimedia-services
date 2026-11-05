@@ -9,7 +9,7 @@
     { id: 'connections', name: 'ComfyUI', providers: ['comfyui'], kinds: [], description: '管理 ComfyUI 服务连接和远端资源。' },
     { id: 'workflows', name: '本地工作流', providers: [], kinds: [], description: '导入和管理 ComfyUI API 工作流。' }
   ];
-  const screens = [{ id: 'config', name: '配置' }, { id: 'image', name: '生图' }, { id: 'records', name: '生成记录' }];
+  const screens = [{ id: 'config', name: '配置' }, { id: 'image', name: '生图' }, { id: 'audio', name: '声音' }, { id: 'records', name: '生成记录' }];
   const providerDisplay = { openai: 'ChatGPT / OpenAI 图片', minimax: 'MiniMax', xiaomi: '小米 MiMo', comfyui: 'ComfyUI', dreamina: '即梦 Dreamina', libtv: 'LibTV', workflow: '本地工作流' };
   const categoryForProvider = provider => provider === 'dreamina' ? 'dreamina' : provider === 'libtv' ? 'libtv' : provider === 'comfyui' ? 'connections' : 'models';
   const s = { data: null, screen: 'config', tab: 'models', addDialog: false, dialogReturnFocus: null, resourceProfile: null, draft: null, defaults: null, defaultsDirty: false, dirty: false, busy: false, notice: null, locked: false,
@@ -19,6 +19,9 @@
   const C = { state: s, get tab() { return tabs.find(tab => tab.id === s.tab); }, render, touch, message, probe, canProbe, openResources, importRemote };
   const remote = A.remoteController({ state: s, invoke, render, importRemote });
   const generation = A.generationController({ state: s, invoke, render, message });
+  const audio = A.audioController({ state: s, invoke, render });
+  const records = A.recordsPageController({ state: s, invoke });
+  const generationPages = { image: generation, audio, records };
   function touch() {
     s.dirty = true; s.editVersion++;
     document.querySelectorAll('[data-browse]').forEach(node => { node.disabled = true; });
@@ -57,10 +60,10 @@
   async function navigate(tab = s.tab, screen = s.screen, focusId = screen === 'config' ? 'config-list' : `main-${screen}`) {
     if (!await canLeave()) return;
     resetDraft(); s.tab = tab; s.screen = screen; s.notice = null; s.query = ''; s.listFilter = 'all'; s.defaultsDirty = false;
-    generation.screenChanged();
+    for (const controller of Object.values(generationPages)) controller.screenChanged();
     if (s.data) s.defaults = A.clone(s.data.defaults);
     render(); document.getElementById(focusId)?.focus();
-    if (['image', 'records'].includes(screen)) void generation.refresh();
+    void generationPages[screen]?.refresh();
   }
   async function load(explicit = false) {
     if (s.busy) return;
@@ -78,7 +81,7 @@
       if (!s.alive || ticket !== s.epoch) return;
       s.loadError = error.code === 'NO_BRIDGE' ? '请在 PI-Desktop 插件面板中打开此页面。当前没有连接到配置服务。' : A.errorText(error);
       if (s.data) s.notice = { text: s.loadError, type: 'error' };
-    } finally { if (s.alive) { s.busy = false; render(); if (['image', 'records'].includes(s.screen)) void generation.refresh(); } }
+    } finally { if (s.alive) { s.busy = false; render(); void generationPages[s.screen]?.refresh(); } }
   }
   async function open(item, providerId = null) {
     if (s.busy || !s.data) return;
@@ -487,8 +490,8 @@
   }
   function render() {
     if (!s.alive) return;
-    const header = h('header', {}, h('div', { class: 'brand' }, h('h1', {}, 'AI 媒体服务', h('span', { class: 'title-version' }, '0.4.3'))),
-      h('p', { class: 'capability' }, 'GPT 文生图 · 服务配置与资源浏览'));
+    const header = h('header', {}, h('div', { class: 'brand' }, h('h1', {}, 'AI 媒体服务', h('span', { class: 'title-version' }, '0.5.0'))),
+      h('p', { class: 'capability' }, 'GPT 文生图 · MiniMax 语音合成'));
     const nav = navView(screens, s.screen, 'main', '媒体服务主导航', 'main-panel', id => navigate(s.tab, id, `main-${id}`));
     const main = h('div', { id: 'main-panel', role: 'tabpanel', 'aria-labelledby': `main-${s.screen}` });
     const panel = h('div', { id: 'settings-panel', ...(s.screen === 'config' ? { role: 'region', 'aria-labelledby': 'main-config' } : {}), 'aria-busy': String(s.busy), class: 'view' });
@@ -501,7 +504,8 @@
       panel.append(h('div', { class: 'card' }, empty));
     }
     else if (s.screen === 'image') panel.append(generation.view());
-    else if (s.screen === 'records') panel.append(generation.recordsView());
+    else if (s.screen === 'audio') panel.append(audio.view());
+    else if (s.screen === 'records') panel.append(records.view());
     else if (s.resourceProfile) panel.append(h('div', { class: 'heading' }, h('div', { class: 'inline' }, button('←', () => navigate(), { 'aria-label': '返回连接列表', class: 'quiet' }), h('h2', { id: 'resource-heading', tabindex: -1 }, '浏览资源'))), remote.resourceView());
     else if (s.draft) {
       const isComfy = s.draft.provider === 'comfyui';
@@ -523,6 +527,6 @@
   const appearanceTicket = appearanceVersion;
   invoke('app.getAppearance').then(appearance => { if (s.alive && appearanceVersion === appearanceTicket) applyAppearance(appearance); }).catch(() => {});
   window.addEventListener('beforeunload', e => { if (s.dirty || s.defaultsDirty || s.busy) { e.preventDefault(); e.returnValue = ''; } });
-  window.addEventListener('pagehide', () => { s.alive = false; generation.dispose(); resetDraft(); media.removeEventListener('change', systemAppearance); if (typeof unsubscribe === 'function') unsubscribe(); });
+  window.addEventListener('pagehide', () => { s.alive = false; for (const controller of Object.values(generationPages)) controller.dispose(); resetDraft(); media.removeEventListener('change', systemAppearance); if (typeof unsubscribe === 'function') unsubscribe(); });
   void load();
 })();

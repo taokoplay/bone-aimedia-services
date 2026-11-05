@@ -1,4 +1,4 @@
-# Configuration and generation contract — 0.4.3
+# Configuration and generation contract — 0.5.0
 
 ## Runtime and storage
 
@@ -6,14 +6,15 @@ Plugin ID `bone.aimedia.services`, view `settings`, command
 `bone.aimedia.services.open`. Source is independent from Film Factory. There is
 no production schema or dependency on a Film Factory installation.
 
-Agent-first orchestration is specified in agent-image-contract.md. Four additive
-tools reuse the existing settings/image services, with no new credential source.
+Agent-first image orchestration is specified in agent-image-contract.md; speech
+and unified records are specified in audio-generation-contract.md. Sixteen tools
+reuse the settings/generation services, with no new credential source.
 Image records read both version 1 and version 2; version 2 adds private hashed
 Agent provenance. Existing public responses omit it. No settings migration or
 automatic default change is performed. Export declares only workspace-scoped
 fs.read/fs.write for bone-media/exports/**; generation is independent of export.
 
-Agent submission now holds its originating host invocation until the shared image
+Agent submission holds its originating host invocation until the shared image/audio
 execution settles and persists the result. The panel's submit/poll contract stays
 asynchronous. New HTTP requests have a 90-second deadline under the installed
 host's 110-second tool limit; existing-job waitMs is not a new-request timeout.
@@ -52,12 +53,12 @@ read as an empty state without writes; corrupt files are reported, not reset.
 
 ## Generation records presentation
 
-The visible navigation is Configuration, Generate, Generation Records. The latter
-merges the old Records and Task Queue surfaces and shows only plugin-local jobs.
+The visible navigation is Configuration, Image, Audio, Generation Records. The latter
+merges image and speech jobs into one local list with kind and channel/model labels.
 It uses local state filters and a modal detail view described in
-generation-records-ui.md. Stored status, provider requests and Agent contracts
-are unchanged. ComfyUI history/queue APIs remain compatible but are no longer
-rendered in this unified local record page.
+generation-records-ui.md. Existing image records and routes remain compatible;
+additive audio/records routes are described in audio-generation-contract.md.
+ComfyUI history/queue APIs remain compatible but are not mixed into this list.
 ## Panel bridge
 
 The page reads `aimedia.status.panelProtocol` before dispatch. Version 1 uses
@@ -307,9 +308,9 @@ Five image tools are added: prepare_image (medium, local write), submit_image
 (low, local reads). The panel uses aimedia.image.prepare/submit/get/list/read.
 See gpt-image-usage-plan.md for the exact request, state and export workflow.
 Capability contractVersion remains 1 with additive generation constraints;
-generationImplemented=true applies only to GPT text-to-image. Other operations
-remain configuration-only. Image ready requires an enabled OpenAI service,
-configured gpt-image-* image model and a restored credential, not a network probe.
+generationImplemented=true covers GPT text-to-image and MiniMax speech. Other
+operations remain configuration-only. Readiness requires a supported configured
+model, enabled service and restored credential, not a network probe.
 credentialStorageStatus remains backend/support/last-access observation.
 
 An actual Agent get_capabilities invocation establishes toolReachable=true for
@@ -324,8 +325,8 @@ text. No tool claims another plugin's installation or provider execution state.
 
 The imported prototype code is implementation reference only; no old private
 configuration is migrated automatically. Existing works remain in Film Factory.
-The implemented GPT subset is described in gpt-image-usage-plan.md. Remaining
-generation/export ideas in api-contract-draft.md are future proposals.
+Implemented GPT and MiniMax speech subsets are described in gpt-image-usage-plan.md
+and audio-generation-contract.md. Remaining ideas in api-contract-draft.md are proposals.
 
 Tests use temporary private directories and synthetic HTTP. Run backend/entry
 checks with `node --test tests/*.test.cjs` and browser user paths with

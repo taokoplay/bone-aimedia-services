@@ -1,5 +1,6 @@
 "use strict";
 
+const { isSupportedAudioModel } = require("../lib/audio-models.js");
 const PLUGIN_ID = "bone.aimedia.services";
 const kinds = ["image", "video", "audio"];
 function input(value) {
@@ -36,10 +37,16 @@ function capabilities(snapshot, version, toolReachable = true) {
     blockedBy: imageProfiles.length ? [] : ["enabled-gpt-model-and-credential-required"],
     configuredProfiles: imageProfiles.map(profile => profile.id),
     constraints: { maxOutputs: 1, format: "png", sizes: ["1024x1024", "1536x1024", "1024x1536"], qualities: ["low", "medium", "high"], maxImageBytes: 16777216, resultTransport: "base64-only", requiresExplicitSubmit: true, price: "unknown" } });
+  const audioProfiles = configured.filter(profile => profile.provider === "minimax" && profile.credentialConfigured && profile.models.some(model => model.kind === "audio" && isSupportedAudioModel(model.id)));
+  Object.assign(operations.find(item => item.id === "audio.speech"), { execution: "native", ready: audioProfiles.length > 0,
+    blockedBy: audioProfiles.length ? [] : ["enabled-minimax-speech-model-and-credential-required"],
+    configuredProfiles: audioProfiles.map(profile => profile.id),
+    constraints: { maxOutputs: 1, format: "mp3", maxTextLength: 1000, voiceIdRequired: true, speed: [0.5, 2], maxAudioBytes: 16777216, resultTransport: "hex-json", requiresExplicitSubmit: true, price: "unknown" } });
   return { pluginId: PLUGIN_ID, pluginVersion: version, contractVersion: 1,
-    stage: "gpt-image-generation-and-discovery", toolReachable, configRevision: snapshot.revision,
+    stage: "image-and-speech-generation", toolReachable, configRevision: snapshot.revision,
     generationImplemented: true, operations, defaults: { ...snapshot.defaults },
     agentWorkflow: { catalogTool: "media_catalog", generationTool: "generate_image", jobTool: "image_job", exportTool: "export_image_result", submissionWait: "until-request-settles", requestTimeoutMs: 90000, maxGenerateWaitMs: 100000, maxExistingJobWaitMs: 10000, maxJobWaitMs: 15000, maxInlineBytes: 4194304, jobScope: "calling-session", exportScope: "bone-media/exports/**" },
+    audioWorkflow: { generationTool: "generate_audio", jobTool: "audio_job", voicesTool: "audio_voices", exportTool: "export_audio_result", operation: "speech", requestTimeoutMs: 90000, jobScope: "calling-session", exportScope: "bone-media/exports/**" },
     credentialStorage: "macos-keychain-encrypted-plugin-private",
     credentialStorageStatus: structuredClone(snapshot.credentialStorageStatus || { backend: "macos-keychain", supported: false, access: "unchecked" }), automaticNetwork: false,
     singletonProviders: ["dreamina", "libtv"],
@@ -47,7 +54,7 @@ function capabilities(snapshot, version, toolReachable = true) {
     remoteInspection: { provider: "comfyui", transport: "panel-explicit-read-only", resources: ["model-folders", "models", "workflows", "workflow", "history", "queue"],
       taskOwnership: "server-wide-unknown", generationImplemented: false },
     observation: "Provider discovery verifies only catalog/node access; actual media review belongs to Agent and requires observation evidence.",
-    limitations: ["Only GPT text-to-image PNG generation is implemented; image editing, video, audio and workflow execution remain unavailable.",
+    limitations: ["GPT text-to-image and MiniMax text-to-speech are implemented. Image editing, environmental sound effects, music, video and workflow execution remain unavailable.",
       "Prepared jobs are local. Submission can incur provider charges; uncertain outcomes are never automatically retried.",
       "URL-only image replies remain unavailable. Typed image results are bounded; original-file export requires the declared workspace scope and an Agent-authorized decoder.",
       "Dreamina CLI and LibTV MCP sign-in remain external; this plugin does not execute them.",

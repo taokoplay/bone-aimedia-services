@@ -112,7 +112,7 @@ class RecordsBrowser(unittest.TestCase):
     def test_unified_filters_metadata_and_no_remote_requests(self):
         self.seed()
         self.records()
-        expect(self.page.get_by_role("tab")).to_have_count(3)
+        expect(self.page.get_by_role("tab")).to_have_count(4)
         expect(self.page.get_by_role("tab", name="任务队列", exact=True)).to_have_count(0)
         expect(self.page.locator("[data-image-job]")).to_have_count(7)
         expect(self.row("completed")).to_contain_text("传贝GPT")
@@ -192,7 +192,7 @@ class RecordsBrowser(unittest.TestCase):
           const invoke = pluginBridge.invoke;
           pluginBridge.invoke = async (channel,payload) => {
             const result = await invoke(channel,payload);
-            if(payload?.channel === 'aimedia.image.get') await new Promise(resolve => window.__releaseDetail = resolve);
+            if(payload?.channel === 'aimedia.records.get') await new Promise(resolve => window.__releaseDetail = resolve);
             return result;
           };
         }""")
@@ -220,7 +220,7 @@ class RecordsBrowser(unittest.TestCase):
         self.page.evaluate("""id => {
           const invoke = pluginBridge.invoke; let once = true;
           pluginBridge.invoke = async (channel,payload) => {
-            if(once && payload?.channel === 'aimedia.image.get' && payload.payload?.jobId === id) { once = false; throw Error('Synthetic detail read failure'); }
+            if(once && payload?.channel === 'aimedia.records.get' && payload.payload?.jobId === id) { once = false; throw Error('Synthetic detail read failure'); }
             return invoke(channel,payload);
           };
         }""", self.jobs["completed"]["id"])

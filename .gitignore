@@ -1,0 +1,6 @@
+dist/
+node_modules/
+*.piplug
+.DS_Store
+__pycache__/
+*.pyc

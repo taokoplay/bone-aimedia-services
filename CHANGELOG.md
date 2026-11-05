@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+- Add MiniMax speech synthesis through configured models and explicit voice IDs,
+  with Agent generation, voice discovery, session-scoped jobs and MP3 export.
+- Unify local image and audio records with state filters, modal playback/download,
+  byte-derived audio metadata and local polling for newly created Agent jobs.
+- Share durable storage, request lifecycle, concurrency and export safety while
+  preserving image formats, old interfaces and credentials without migration.
+- Add a speech page and regression coverage. Environmental sound effects, music,
+  video and workflow execution remain unavailable; no local synthesis fallback.
+
 ## 0.4.3
 
 - Combine the channel and model into one records-table cell: channel above,

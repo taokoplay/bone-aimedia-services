@@ -14,55 +14,25 @@
     failed: '生成未完成，请查看下方安全错误说明。此任务不会自动重试。',
     'result-pending': '任务已有记录，但图片暂不可用。重新读取仅检查本地结果，不重新生成。'
   };
-  const maxBytes = 16 * 1024 * 1024;
   const failure = code => Object.assign(new Error(code), { code });
   A.generationController = ({ state: s, invoke, render, message }) => {
     const draft = { profileId: '', modelId: '', prompt: '', size: sizes[0], quality: 'medium' };
     const jobs = new Map(), attempted = new Set(), reads = new Map();
     let alive = true, requestId = null, requestKey = null, activeId = null;
     let preparing = false, confirming = false, listLoading = false, listError = '', formError = '';
-    let listTicket = 0, timer = null, previewTicket = 0, preview = null;
+    let listTicket = 0, timer = null;
     const live = () => alive && s.alive;
-    const visible = () => ['image', 'records'].includes(s.screen);
-    const showing = id => visible() && (s.screen === 'image' ? activeId === id : records.showing(id));
+    const visible = () => s.screen === 'image' && !document.hidden;
+    const showing = id => s.screen === 'image' && activeId === id;
     const disabled = () => s.legacyBackend || !s.data || s.busy;
     const eligible = () => (s.data?.profiles || []).filter(p => p.provider === 'openai' && p.enabled && p.credentialConfigured);
     const models = profile => (profile?.models || []).filter(m => m.kind === 'image' && /^gpt-image-/.test(m.id));
-    const records = A.recordsController({ state: s, disabled, refresh, clearPreview, loadResult, previewView,
-      getJob: async id => { const job = await getJob(id); schedule(); return job; },
-      allJobs: () => [...jobs.values()].map(displayed).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-      listState: () => ({ loading: listLoading, error: listError }),
-      previewKey: () => `${previewTicket}:${preview?.loading}:${preview?.error || ''}` });
+    const resultPreview = A.resultPreviewController({ live, disabled, showing, paint,
+      read: (job, offset) => invoke('aimedia.image.read', { jobId: job.id, expectedSha256: job.result.sha256, offset }) });
+    const clearPreview = resultPreview.clear, loadResult = resultPreview.load, previewView = resultPreview.view;
     function paint() {
       if (!live() || !visible()) return;
-      if (s.screen === 'records') { records.update(); return; }
-      const focused = document.activeElement;
-      const id = focused?.id;
-      const selection = focused instanceof HTMLTextAreaElement ? [focused.selectionStart, focused.selectionEnd] : null;
-      const mounted = document.querySelector('[data-generation]');
-      const expanded = [...(mounted?.querySelectorAll('details.picker[open] > summary[id]') || [])].map(summary => summary.id);
-      const focusedPicker = focused?.getAttribute('role') === 'option' ? focused.closest('details')?.querySelector('summary')?.id : null;
-      const focusedOption = focusedPicker ? focused.textContent : null;
-      // Close detached pickers before replacement so their queued toggle handlers
-      // cannot close the newly restored picker elsewhere in the document.
-      for (const pickerId of expanded) document.getElementById(pickerId).parentElement.open = false;
-      if (mounted) mounted.replaceWith(view());
-      else render();
-      for (const pickerId of expanded) {
-        const summary = document.getElementById(pickerId);
-        if (summary?.getAttribute('aria-disabled') !== 'true' && summary?.parentElement) {
-          summary.parentElement.open = true; summary.setAttribute('aria-expanded', 'true');
-        }
-      }
-      if (focusedPicker) {
-        const details = document.getElementById(focusedPicker)?.parentElement;
-        [...(details?.querySelectorAll('[role="option"]') || [])].find(option => option.textContent === focusedOption)?.focus({ preventScroll: true });
-      }
-      if (id) {
-        const control = document.getElementById(id);
-        control?.focus({ preventScroll: true });
-        if (selection && control instanceof HTMLTextAreaElement) control.setSelectionRange(...selection);
-      }
+      A.replaceFormView(document.querySelector('[data-generation]'), view, render);
     }
     function displayed(job) {
       return attempted.has(job.id) && job.state === 'prepared' ? { ...job, state: 'unknown', charging: 'unknown' } : job;
@@ -122,7 +92,7 @@
       return read;
     }
     async function reloadJob(id) {
-      if (preview?.id === id && preview.error) clearPreview();
+      if (resultPreview.failed(id)) clearPreview();
       listError = '';
       try { await getJob(id); } catch (error) { if (live()) listError = A.errorText(error); }
       if (live()) { paint(); schedule(); }
@@ -185,56 +155,6 @@
         }
       } finally { if (live()) { paint(); schedule(); } }
     }
-    function clearPreview() {
-      previewTicket++;
-      if (preview?.url) URL.revokeObjectURL(preview.url);
-      preview = null;
-    }
-    async function loadResult(job) {
-      if (!live() || disabled() || !showing(job.id) || !job.result || preview?.id === job.id && preview.hash === job.result.sha256) return;
-      clearPreview();
-      const ticket = previewTicket, result = job.result;
-      preview = { id: job.id, hash: result.sha256, loading: true, url: null, image: null, error: '' }; paint();
-      const current = () => live() && showing(job.id) && ticket === previewTicket;
-      try {
-        if (result.mimeType !== 'image/png' || result.verification !== 'png-validated' || !Number.isInteger(result.byteLength) || result.byteLength < 1 || result.byteLength > maxBytes) throw failure('RESULT_INVALID');
-        const chunks = []; let offset = 0;
-        for (let index = 0; offset < result.byteLength && index < 4096; index++) {
-          const chunk = await invoke('aimedia.image.read', { jobId: job.id, expectedSha256: result.sha256, offset });
-          if (!current()) return;
-          if (chunk.jobId !== job.id || chunk.mimeType !== 'image/png' || chunk.sha256 !== result.sha256 || chunk.totalBytes !== result.byteLength || chunk.offset !== offset || typeof chunk.base64 !== 'string' || chunk.base64.length > 87384) throw failure('RESULT_INVALID');
-          const bytes = Uint8Array.from(atob(chunk.base64), character => character.charCodeAt(0));
-          if (!bytes.length || bytes.length > 65536 || chunk.nextOffset !== offset + bytes.length || chunk.nextOffset > result.byteLength || chunk.eof !== (chunk.nextOffset === result.byteLength)) throw failure('RESULT_INVALID');
-          chunks.push(bytes); offset = chunk.nextOffset;
-        }
-        if (offset !== result.byteLength) throw failure('RESULT_INVALID');
-        const blob = new Blob(chunks, { type: 'image/png' });
-        const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
-        if (!current()) return;
-        if (Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('') !== result.sha256) throw failure('RESULT_INVALID');
-        const url = URL.createObjectURL(blob); preview.url = url;
-        const image = new Image(); image.alt = '生成图片预览'; image.src = url;
-        await image.decode();
-        if (!current()) return;
-        if (image.naturalWidth !== result.width || image.naturalHeight !== result.height) throw failure('RESULT_INVALID');
-        preview.image = image;
-      } catch (error) {
-        if (!current()) return;
-        if (preview.url) URL.revokeObjectURL(preview.url);
-        preview.url = null;
-        preview.error = error.code === 'RESULT_UNAVAILABLE' ? '本地图片暂不可用，请重新读取任务核对。不会重新生成。' : '图片无法通过完整性检查或浏览器解码，无法预览和下载。不会重新生成。';
-      } finally { if (current()) { preview.loading = false; paint(); } }
-    }
-    function previewView(job) {
-      if (!job.result) return note('暂无可读取的本地图片。');
-      if (preview?.id !== job.id) return h('div', { class: 'block' }, button('预览图片', () => loadResult(job), { disabled: disabled() }));
-      if (preview.loading) return h('p', { class: 'note', role: 'status' }, '正在读取本地 PNG 并解码…');
-      if (preview.error) return h('div', {}, h('p', { class: 'generation-error', role: 'alert' }, preview.error),
-        button('重试读取图片', () => { clearPreview(); void loadResult(job); }, { disabled: disabled() }));
-      return h('div', { class: 'generation-result' }, preview.image,
-        h('div', { class: 'generation-result-actions' }, h('a', { class: 'generation-download', href: preview.url, download: `${job.id}.png` }, '下载 PNG'),
-          h('span', { class: 'muted' }, `${job.result.width} × ${job.result.height} · 画面质量未评审`)));
-    }
     function jobView(original) {
       const job = displayed(original), request = job.request;
       const info = h('dl', { class: 'generation-request' });
@@ -281,13 +201,15 @@
         active && ['prepared', 'succeeded', 'failed'].includes(displayed(active).state) && h('div', { class: 'footer' }, button(active.state === 'prepared' ? '编辑请求' : '新建请求', resetForm, { disabled: disabled() || confirming })),
         listError && h('p', { class: 'generation-error', role: 'alert' }, listError));
     }
-    function recordsView() { return records.view(); }
     function screenChanged() {
-      records.closeDetails(false); clearPreview(); schedule();
+      clearPreview(); schedule();
     }
     function dispose() {
-      alive = false; listTicket++; records.dispose(); clearTimeout(timer); clearPreview(); reads.clear(); jobs.clear(); attempted.clear();
+      alive = false; listTicket++; clearTimeout(timer); clearPreview(); reads.clear(); jobs.clear(); attempted.clear();
+      document.removeEventListener('visibilitychange', visibilityChanged);
     }
-    return { view, recordsView, refresh, dispose, closeDetails: records.closeDetails, screenChanged };
+    function visibilityChanged() { schedule(); if (visible()) void refresh(); }
+    document.addEventListener('visibilitychange', visibilityChanged);
+    return { view, refresh, dispose, screenChanged };
   };
 })();

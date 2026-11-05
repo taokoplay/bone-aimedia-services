@@ -124,7 +124,7 @@ test("entry Agent tools and panel share the same generation lifecycle and safe e
   const host = { plugin: { getDataPath: async () => f.root, getManifest: async () => ({ version: "0.3.0" }) }, commands: { register: async () => {}, unregister: async () => {} },
     agent: { registerTool: async tool => tools.set(tool.name, tool), unregisterTool: async name => tools.delete(name) }, net: { fetch: async () => response({ data: [{ b64_json: png().toString("base64") }] }) } };
   const entry = createPlugin(host, () => testSecrets()); await entry.onLoad(); t.after(() => entry.onUnload());
-  assert.equal(tools.size, 12); assert.equal(tools.get("submit_image").risk, "high");
+  assert.equal(tools.size, 16); assert.equal(tools.get("submit_image").risk, "high");
   const job = await tools.get("prepare_image").execute(input());
   const sent = await entry.onPanelInvoke("aimedia.invoke", { channel: "aimedia.image.submit", payload: submit(job) }); assert.equal(sent.ok, true);
   const adapter = { get: input => tools.get("get_image_job").execute(input) };

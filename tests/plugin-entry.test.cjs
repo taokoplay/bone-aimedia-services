@@ -23,14 +23,14 @@ before(async () => {
 });
 after(async () => { await plugin.onUnload(); delete globalThis.pi; await fs.rm(directory, { recursive: true, force: true }); });
 
-test("plugin exposes discovery and image task contracts with honest per-operation readiness", async () => {
+test("plugin exposes discovery, image and audio contracts with honest per-operation readiness", async () => {
   const manifest = JSON.parse(await fs.readFile(path.join(__dirname, "../manifest.json"), "utf8"));
   assert.equal(manifest.id, "bone.aimedia.services");
-  assert.deepEqual([...tools.keys()], ["get_capabilities", "list_profiles", "list_workflows", "prepare_image", "submit_image", "get_image_job", "list_image_jobs", "read_image_result", "media_catalog", "generate_image", "image_job", "export_image_result"]);
-  assert.equal(manifest.contributes.agentTools.length, 12);
+  assert.deepEqual([...tools.keys()], ["get_capabilities", "list_profiles", "list_workflows", "prepare_image", "submit_image", "get_image_job", "list_image_jobs", "read_image_result", "media_catalog", "generate_image", "image_job", "export_image_result", "generate_audio", "audio_job", "export_audio_result", "audio_voices"]);
+  assert.equal(manifest.contributes.agentTools.length, 16);
   for (const descriptor of manifest.contributes.agentTools) {
     const tool = tools.get(descriptor.name); assert.deepEqual(tool.schema, descriptor.schema);
-    assert.equal(tool.description, descriptor.description); assert.equal(tool.risk, ["submit_image", "generate_image"].includes(descriptor.name) ? "high" : ["prepare_image", "export_image_result"].includes(descriptor.name) ? "medium" : "low");
+    assert.equal(tool.description, descriptor.description); assert.equal(tool.risk, ["submit_image", "generate_image", "generate_audio"].includes(descriptor.name) ? "high" : ["prepare_image", "export_image_result", "export_audio_result", "audio_voices"].includes(descriptor.name) ? "medium" : "low");
     assert.deepEqual(tool.planSafeActions, descriptor.planSafeActions);
   }
   const caps = await call("get_capabilities");
@@ -41,7 +41,8 @@ test("plugin exposes discovery and image task contracts with honest per-operatio
   assert.ok(!manifest.permissions.some(p => p.startsWith("secrets.")));
   assert.ok(caps.operations.every(op => op.ready === false));
   assert.equal(caps.operations.find(op => op.id === "image.generate").execution, "native");
-  assert.ok(caps.operations.filter(op => op.id !== "image.generate").every(op => op.execution === "configuration-only"));
+  assert.equal(caps.operations.find(op => op.id === "audio.speech").execution, "native");
+  assert.ok(caps.operations.filter(op => !["image.generate", "audio.speech"].includes(op.id)).every(op => op.execution === "configuration-only"));
   assert.deepEqual((await call("list_profiles")).profiles, []);
   assert.deepEqual((await call("list_workflows")).workflows, []);
   assert.equal(calls.length, 0);
@@ -98,7 +99,7 @@ test("stale saves and invalid direct-tool inputs reject without writes or creden
   const state = await get();
   await assert.rejects(plugin.onPanelInvoke("aimedia.save", { expectedRevision: 0, profiles: [], defaults, workflows: [] }), { code: "CONFLICT" });
   for (const name of tools.keys()) for (const args of [null, [], { unknown: "fixture-secret" }, { kind: "video-and-audio" }]) {
-    if (["media_catalog", "generate_image", "image_job", "export_image_result"].includes(name)) {
+    if (["media_catalog", "generate_image", "image_job", "export_image_result", "generate_audio", "audio_job", "export_audio_result", "audio_voices"].includes(name)) {
       const result = await tools.get(name).execute(args, { sessionId: "test", turnId: "test", mode: "agent" });
       assert.equal(result.structuredContent.ok, false); assert.equal(result.structuredContent.error.code, "INVALID_ARGUMENT");
       assert.ok(!JSON.stringify(result).includes("fixture-secret"));

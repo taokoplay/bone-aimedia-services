@@ -99,6 +99,31 @@
     details.append(summary, list);
     return details;
   };
+  // Preserve text selection and open custom pickers across asynchronous form updates.
+  A.replaceFormView = (mounted, view, render) => {
+    const focused = document.activeElement, id = focused?.id;
+    const selection = focused instanceof HTMLTextAreaElement || focused instanceof HTMLInputElement && focused.selectionStart !== null ? [focused.selectionStart, focused.selectionEnd] : null;
+    const expanded = [...(mounted?.querySelectorAll('details.picker[open] > summary[id]') || [])].map(summary => summary.id);
+    const focusedPicker = focused?.getAttribute('role') === 'option' ? focused.closest('details')?.querySelector('summary')?.id : null;
+    const focusedOption = focusedPicker ? focused.textContent : null;
+    // Detached toggle handlers must not close newly restored pickers.
+    for (const pickerId of expanded) document.getElementById(pickerId).parentElement.open = false;
+    if (mounted?.isConnected) mounted.replaceWith(view()); else render();
+    for (const pickerId of expanded) {
+      const summary = document.getElementById(pickerId);
+      if (summary?.getAttribute('aria-disabled') !== 'true' && summary?.parentElement) {
+        summary.parentElement.open = true; summary.setAttribute('aria-expanded', 'true');
+      }
+    }
+    if (focusedPicker) {
+      const details = document.getElementById(focusedPicker)?.parentElement;
+      [...(details?.querySelectorAll('[role="option"]') || [])].find(option => option.textContent === focusedOption)?.focus({ preventScroll: true });
+    }
+    if (id) {
+      const control = document.getElementById(id); control?.focus({ preventScroll: true });
+      if (selection && (control instanceof HTMLTextAreaElement || control instanceof HTMLInputElement && control.selectionStart !== null)) control.setSelectionRange(...selection);
+    }
+  };
   A.toggle = (label, checked, change, disabled) => h('label', { class: 'switch-line' },
     h('input', { type: 'checkbox', role: 'switch', 'aria-label': label, checked, disabled, onchange: e => change(e.target.checked) }), label);
   A.confirm = (title, text, accept = '放弃修改') => new Promise(resolve => {
@@ -126,17 +151,20 @@
     PLUGIN_RELOAD_REQUIRED: '插件后台尚未更新，请在插件管理中重载 Bone AI 媒体服务后重新打开页面。',
     CREDENTIAL_ERROR: '密钥无法安全保存或恢复，请检查登录钥匙串是否解锁、允许访问；原配置已保留。',
     CREDENTIAL_LEGACY: '配置使用旧版宿主加密格式，需要原加密环境才能恢复；原文件已保留。',
-    GENERATION_UNSUPPORTED: '请选择已配置的 GPT 图片模型；当前仅支持 GPT 文生图。',
-    GENERATION_BUSY: '已有图片任务正在生成，请等待后再提交。',
-    GENERATION_LIMIT: '本地生图记录已达到容量上限，未提交新的生成请求。',
+    GENERATION_UNSUPPORTED: '请选择已配置且受支持的 GPT 图片模型或 MiniMax 语音模型。',
+    GENERATION_BUSY: '已有生成任务占用并发额度，请等待后再提交。',
+    GENERATION_LIMIT: '此媒体的本地记录已达到容量上限，未提交新的生成请求。',
     GENERATION_UNKNOWN: '生成结果尚不确定，请先检查供应商记录，勿直接重复生成。',
     GENERATION_REQUEST_CONFLICT: '任务参数与已准备请求不一致，请重新核对。',
-    RESULT_INVALID: '图片校验未通过，未作为成功结果保存；请检查供应商记录。',
-    RESULT_UNAVAILABLE: '当前没有可读取的 PNG 结果；供应商可能仅返回了下载链接。',
+    RESULT_INVALID: '结果校验未通过，未作为成功结果保存；请检查供应商记录。',
+    RESULT_UNAVAILABLE: '当前没有可读取的本地结果，请重新读取任务核对。',
     CREDENTIAL_REQUIRED: '请先在配置中保存所选服务的 API Key。',
     TOOL_ABORTED: '宿主工具调用已中断，尚未取得供应商结果；是否扣费未知，请勿重复提交。',
     TIMEOUT: '等待供应商响应超时，生成结果和费用仍需核对，请勿直接重复生成。',
     NETWORK_ERROR: '供应商请求未完成，生成结果和费用尚不确定，请检查网络及供应商记录。',
+    AUTHENTICATION_REQUIRED: '供应商拒绝认证，请检查所选服务的 API Key。',
+    RATE_LIMITED: '供应商拒绝了请求，请检查额度与调用限制；此任务不会自动重试。',
+    HTTP_ERROR: '供应商返回错误，请检查服务状态；此任务不会自动重试。',
     PERMISSION_DENIED: '宿主未授权此操作，请检查插件权限。'
   }[error?.code] || '请求未完成，请检查服务状态后重新读取。');
   A.connectionProbeText = result => {

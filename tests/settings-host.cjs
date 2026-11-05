@@ -9,7 +9,9 @@ const root = path.resolve(__dirname, "..");
   const temporary = await fs.mkdtemp(path.join(process.env.PI_SCRATCH_DIR || os.tmpdir(), "aimedia-ui-"));
   const tools = new Map();
   let network = 0, mode = "normal", backend = "normal";
-  let releaseImage = null;
+  let releaseImage = null, releaseAudio = null;
+  const perKind = { image: 0, audio: 0, voices: 0, other: 0 };
+  const calls = {};
   const crypto = require("./settings-service-fixture.cjs").testSecrets();
   const secrets = { ...crypto };
   globalThis.pi = {
@@ -18,13 +20,14 @@ const root = path.resolve(__dirname, "..");
     agent: { registerTool: async t => tools.set(t.name, t), unregisterTool: async name => tools.delete(name) },
     net: { fetch: async input => {
       network++;
+      const route = new URL(input.url).pathname;
+      perKind[route.endsWith('/images/generations') ? 'image' : route.endsWith('/t2a_v2') ? 'audio' : route.endsWith('/get_voice') ? 'voices' : 'other']++;
       if (input.redirect !== "error") throw Error("Expected redirect refusal");
       if (mode === "denied") throw Object.assign(new Error("fixture-private-key"), { code: "PERMISSION_DENIED" });
       if (mode === "invalid") return { status: 200, headers: {}, bodyText: "invalid" };
       if (mode === "unsupported") return { status: 404, headers: {}, bodyText: "Not supported" };
       if (mode === "timeout") throw Object.assign(new Error("fixture-private-key"), { code: "TIMEOUT" });
       if (mode === "unauthorized" || mode === "require-header" && input.headers["X-API-Key"] !== "fixture-key-for-browser" || mode === "require-bearer" && input.headers.Authorization !== "Bearer fixture-key-for-browser") return { status: 401, headers: {}, bodyText: "fixture-private-key" };
-      const route = new URL(input.url).pathname;
       const reply = value => ({ status: 200, headers: {}, bodyText: JSON.stringify(value) });
       if (route.endsWith('/images/generations')) {
         if (mode === 'image-held') return new Promise(resolve => {
@@ -36,6 +39,22 @@ const root = path.resolve(__dirname, "..");
         if (mode === 'image-url') return reply({ data: [{ url: 'https://fixture.invalid/result.png?token=private' }] });
         if (mode === 'image-success') return reply({ data: [{ b64_json: require('./image-fixture.cjs').png(32, 32).toString('base64') }] });
         throw Error('Image generation fixture requires an explicit mode');
+      }
+      if (route.endsWith('/t2a_v2')) {
+        const body = JSON.parse(input.body);
+        if (input.method !== 'POST' || body.stream !== false || body.output_format !== 'hex' || body.audio_setting?.format !== 'mp3' || !body.voice_setting?.voice_id) throw Error('Invalid speech fixture request');
+        const success = () => reply({ base_resp: { status_code: 0 }, data: { status: 2, audio: require('./audio-fixture.cjs').validMp3().toString('hex') } });
+        if (mode === 'audio-held') return new Promise(resolve => {
+          if (releaseAudio) throw Error('Only one held audio fixture is supported');
+          releaseAudio = outcome => { releaseAudio = null; resolve(outcome === 'failed' ? reply({ base_resp: { status_code: 1004 } }) : success()); };
+        });
+        if (mode === 'audio-success') return success();
+        if (mode === 'audio-timeout') throw Object.assign(Error('Synthetic speech timeout'), { code: 'TIMEOUT' });
+        if (mode === 'audio-invalid') return reply({ base_resp: { status_code: 0 }, data: { status: 2, audio: Buffer.from('invalid-audio').toString('hex') } });
+        if (mode === 'audio-failed') return reply({ base_resp: { status_code: 1004 } });
+        if (mode === 'audio-rate') return reply({ base_resp: { status_code: 1002 } });
+        if (mode === 'audio-unknown') return reply({ base_resp: { status_code: 1000 } });
+        throw Error('Speech fixture requires an explicit mode');
       }
       if (new URL(input.url).hostname === 'api.minimax.cn' && route.endsWith('/models')) {
         if (mode === 'minimax-models-failed') return { status: 404, headers: {}, bodyText: 'fixture-private-key' };
@@ -69,8 +88,9 @@ const root = path.resolve(__dirname, "..");
         let raw = ""; for await (const chunk of req) { raw += chunk; if (raw.length > 1024 * 1024) throw Error("Payload limit"); }
         const { channel, payload } = JSON.parse(raw);
         let result;
-        if (channel === "fixture.metrics") result = { network, requestCount: network, tools: [...tools.keys()], unchanged: true };
+        if (channel === 'fixture.metrics') result = { network, requestCount: network, perKind, calls, tools: [...tools.keys()], unchanged: true };
         else if (channel === "fixture.imageRelease") { if (!["success", "failed"].includes(payload?.outcome)) throw Error("Invalid image fixture outcome"); if (!releaseImage) throw Error("No image fixture is pending"); releaseImage(payload.outcome); result = { ok: true }; }
+        else if (channel === 'fixture.audioRelease') { if (!['success', 'failed'].includes(payload?.outcome)) throw Error('Invalid audio fixture outcome'); if (!releaseAudio) throw Error('No audio fixture is pending'); releaseAudio(payload.outcome); result = { ok: true }; }
         else if (channel === "fixture.restart") { await plugin.onUnload(); await plugin.onLoad(); result = { ok: true }; }
         else if (channel === "fixture.backend") {
           if (!["normal", "legacy", "offline"].includes(payload?.mode)) throw Error("Invalid backend mode");
@@ -82,13 +102,15 @@ const root = path.resolve(__dirname, "..");
           secrets.decrypt = payload.mode === "unavailable" ? undefined : payload.mode === "normal" ? crypto.decrypt : async () => { throw Object.assign(Error("fixture-private-key"), { code: payload.mode === "denied" ? "PERMISSION_DENIED" : "FAILED" }); };
           result = { ok: true };
         }
-        else if (channel === "fixture.network") { if (!["normal", "invalid", "denied", "unsupported", "timeout", "unauthorized", "require-header", "require-bearer", "large-nodes", "many-models", "minimax-models-failed", "minimax-voices-failed", "minimax-chat-only", "workflow-sensitive", "workflow-large", "image-success", "image-timeout", "image-invalid", "image-url", "image-held"].includes(payload?.mode)) throw Error("Invalid mode"); mode = payload.mode; result = { ok: true }; }
-        else if (channel === "fixture.tool") { const tool = tools.get(payload?.name); if (!tool) throw Error("Unknown tool"); result = await tool.execute(payload.args); }
+        else if (channel === "fixture.network") { if (!["normal", "invalid", "denied", "unsupported", "timeout", "unauthorized", "require-header", "require-bearer", "large-nodes", "many-models", "minimax-models-failed", "minimax-voices-failed", "minimax-chat-only", "workflow-sensitive", "workflow-large", "image-success", "image-timeout", "image-invalid", "image-url", "image-held", "audio-success", "audio-held", "audio-failed", "audio-rate", "audio-timeout", "audio-invalid", "audio-unknown"].includes(payload?.mode)) throw Error("Invalid mode"); mode = payload.mode; result = { ok: true }; }
+        else if (channel === "fixture.tool") { const tool = tools.get(payload?.name); if (!tool) throw Error("Unknown tool"); result = await tool.execute(payload.args, { sessionId: 'synthetic-browser-session', turnId: 'synthetic-browser-turn', mode: 'agent' }); }
         else if (channel === "app.getAppearance") result = { base: "dark", theme: "dark", locale: "zh-CN" };
         else if (channel === "clipboard.writeText") result = { ok: true };
         else {
           if (backend === "offline") throw Error("Fixture backend unavailable");
           if (backend === "legacy" && channel === "aimedia.invoke") throw Error("Legacy entry has no structured protocol");
+          const operation = channel === 'aimedia.invoke' ? payload?.channel : channel;
+          calls[operation] = (calls[operation] || 0) + 1;
           result = await plugin.onPanelInvoke(channel, payload);
           if (backend === "legacy" && channel === "aimedia.status") delete result.panelProtocol;
         }
@@ -108,6 +130,6 @@ const root = path.resolve(__dirname, "..");
   });
   server.listen(0, "127.0.0.1", () => console.log(`http://127.0.0.1:${server.address().port}`));
   let closing = false;
-  async function stop() { if (closing) return; closing = true; releaseImage?.('success'); server.closeAllConnections(); server.close(); await plugin.onUnload(); await fs.rm(temporary, { recursive: true, force: true }); process.exit(0); }
+  async function stop() { if (closing) return; closing = true; releaseImage?.('success'); releaseAudio?.('failed'); server.closeAllConnections(); server.close(); await plugin.onUnload(); await fs.rm(temporary, { recursive: true, force: true }); process.exit(0); }
   process.on("SIGTERM", stop); process.on("SIGINT", stop);
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

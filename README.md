@@ -1,23 +1,24 @@
 # Bone AI 媒体服务
 
-独立的 PI-Desktop 媒体服务插件，以 Agent 对话驱动已配置模型生图；页面用于配置、记录与可选调试。
+独立的 PI-Desktop 媒体服务插件，以 Agent 对话驱动已配置模型生图和 MiniMax 语音合成；页面用于配置、统一记录与可选手动生成。
 
 - 插件 ID：`bone.aimedia.services`
-- 当前版本：`0.4.3`
+- 当前版本：`0.5.0`
 - 源码目录：`bone-aimedia-services`
 - 许可证：[AGPL-3.0-only](LICENSE)
 
-**在对话中说明要用的服务、模型和画面，Agent 可查询配置并生成一张 PNG；无需打开生图页或复制任务参数。**
-图生图、视频、声音和 ComfyUI 执行尚未接入；配置可用不代表真实供应商已验证通过。
+**在对话中说明服务、模型和画面，或明确朗读文本与音色，Agent 可生成一张 PNG 或一段 MP3，并写入统一生成记录。**
+环境音效（如脚步声）、音乐、图生图、视频和 ComfyUI 执行尚未接入；不会把音效请求改成朗读或本地合成。
 
 ## 界面与功能
 
-界面分为三个一级页面，配置继续使用 DutyDeck 风格的“列表 → 独立编辑页”：
+界面分为四个一级页面，配置继续使用 DutyDeck 风格的“列表 → 独立编辑页”：
 
 | 一级页面 | 内容 |
 |---|---|
 | 配置 | 模型服务、即梦、LibTV、ComfyUI、本地工作流 |
 | 生图 | 选择 GPT 服务与模型，准备请求、确认生成一张、预览和下载 PNG |
+| 声音 | MiniMax 语音合成：选择服务、模型、音色，输入朗读文本与语速，确认生成 MP3 |
 | 生成记录 | 统一查看本插件任务，按生成中／已完成／已失败筛选；点击详情打开弹窗 |
 
 配置中的 **模型服务** 合并 OpenAI 图片兼容、小米 MiMo、MiniMax 等供应商，
@@ -34,7 +35,7 @@
 模型。全局图片、视频和声音默认服务由用户明确选择，不自动采用列表第一项。
 
 生成记录列表将渠道与模型合并为一列，上方显示渠道，下方以灰色小字显示模型；旁列显示状态和时间，任务编号与完整参数放入详情弹窗。
-弹窗支持图片预览、下载和本地状态更新，并分别显示请求尺寸与实际尺寸。
+弹窗支持图片预览或音频试听、下载和本地状态更新；图片分别显示请求／实际尺寸，音频显示时长、采样率和声道。
 结果未知／图片待读取的任务标记“待核对”，不会被当作失败；未提交的请求显示“待确认”。
 状态筛选和刷新只读本地记录，不向供应商提交或重试任务。
 
@@ -44,7 +45,7 @@
 |---|---|---|
 | OpenAI 图片生成 | HTTP/HTTPS 地址、加密密钥、`GET /models`；已配置 GPT 模型文生图、PNG 预览与下载 | 图片编辑、批量生成、URL 结果下载 |
 | 小米 MiMo | 配音模型、音色、格式；`GET /models` | 实际语音合成、克隆或音色设计 |
-| MiniMax | Cloud media models via `GET /models`; account voices via `POST /get_voice`; builtin candidates supplement remote results | Actual image/video/audio generation |
+| MiniMax | 模型／音色目录；已配置 speech 系列语音朗读、MP3 试听与下载 | 环境音效、音乐、图像与视频生成 |
 | ComfyUI | 系统与节点发现、模型目录、远端工作流列表与详情；本地 API 工作流校验 | 上传输入、提交任务、取消远端任务和下载生成结果 |
 | 即梦 Dreamina | 一个 CLI 路径与模型配置入口 | 插件内启动 CLI、登录、额度查询和生成 |
 | LibTV | 一个官方 MCP 服务入口与接入说明 | 插件内 OAuth 登录和代理调用远程 MCP 工具 |
@@ -105,7 +106,11 @@ ComfyUI 工作流采用 API 格式 JSON，记录名称、输出媒体类型、�
 | `generate_image` | 自动准备与单次提交，保持调用直到请求结束并保存结果（网络上限 90 秒）；完成返回图片块 |
 | `image_job` | 查询、最多等待 15 秒、会话任务列表或读取图片，不重新生成 |
 | `export_image_result` | 交接原图到授权工作区，由 Agent 的执行工具解码为 PNG，无需模型转写 Base64 |
-| `get_capabilities` | 返回实际能力与约束；只有 GPT 文生图已实现，ready 仍取决于已启用模型和凭据 |
+| `generate_audio` | 将明确的文本和音色提交为一次 MiniMax 语音任务，等待网络与保存结束；成功后导出 MP3 |
+| `audio_job` | 查询／等待／列出当前会话音频任务，或核对结果；不重新提交 |
+| `audio_voices` | 按 MiniMax 语音 modelRef 显式查询音色 ID，不生成或更改默认音色 |
+| `export_audio_result` | 交接原始 MP3 到授权工作区，由 Agent 固定解码命令生成文件 |
+| `get_capabilities` | 返回图片／语音实际能力与约束；ready 取决于已启用模型和凭据，不代表供应商实测通过 |
 | `list_profiles` | 列出服务、模型、默认项和凭据是否已设置；可按媒体类型筛选，不返回密钥 |
 | `list_workflows` | 列出工作流名称、类型、连接引用与节点数量，不返回工作流正文或执行工作流 |
 | `prepare_image` | 本地固化请求，返回任务 ID、哈希和参数，不收费 |
@@ -113,10 +118,14 @@ ComfyUI 工作流采用 API 格式 JSON，记录名称、输出媒体类型、�
 | `get_image_job` / `list_image_jobs` | 本地查询任务状态与记录，不提交远端请求 |
 | `read_image_result` | 分块读取已验证的 PNG，每次最多 64 KiB；不返回私有路径 |
 
-新对话优先使用前四个工具，旧八个工具保留兼容。目录与任务查询不联网；生成入口
+原有 12 个工具保留，新增 4 个音频工具。模型目录与任务查询不联网；`audio_voices` 显式查询供应商音色。生成入口
 在用户明确授权的范围内提交，宿主权限检查继续生效。可直接请求：
 
 > 用媒体服务中的传贝GPT、GPT Image 2，低质量 1024×1024，生成一张白底蓝色陶瓷杯；只提交一次。
+
+语音流程：查询音频模型 → `audio_voices` 选择明确音色 → `generate_audio(operation="speech")` → `audio_job` → `export_audio_result`。
+朗读文本最多 1000 字符，语速 0.5–2，输出 MP3；不设置新的默认音色。音频和图片共用最多两个活动生成名额。
+每类记录最多 200 项，合并列表最多 400 项。记录页可见时自动同步本地任务；关闭音频弹窗会停止播放并释放临时地址。
 
 工具可调用只证明本插件对当前会话可达，不代表某个供应商能生成。未发现工具也不能
 直接推断插件未安装，需要区分未启用、未授权与未暴露。
@@ -138,7 +147,7 @@ Agent 调用导出工具，并在授权工作区运行其固定解码命令，�
 
 ## 安装与权限
 
-在插件管理中安装 `dist/bone.aimedia.services-0.4.3.piplug` 或加载开发目录，并审核所需权限。
+在插件管理中安装 `dist/bone.aimedia.services-0.5.0.piplug` 或加载开发目录，并审核所需权限。
 插件启动即注册工具与技能，不需要先打开页面。已有有效配置后即可在 Agent 模式调用。
 不保证在已运行的同一轮即时增加工具；新会话和下一轮的发现以安装客户端验收为准。
 当前安装的 PI-Desktop 0.21.0 已验证 Agent 模式下的新会话／下一轮工具发现。
@@ -150,8 +159,8 @@ Agent 可通过原图导出与 Markdown 图片链接完成用户可见展示，�
 | `ui.view` | 显示独立设置页面 |
 | `agent.tool.register` | 注册发现、准备、提交和结果读取工具；提交为高风险操作 |
 | `agent.prompt.inject` | 提供对应 Agent 技能 |
-| `net.fetch` / `net.anyHost` | 显式目录查询与确认后的 GPT 请求，支持自定义 HTTP/HTTPS 地址 |
-| `fs.read` / `fs.write` | 仅 `bone-media/exports/**` 内的交接文件检查与写入，原图由 Agent 授权工具解码 |
+| `net.fetch` / `net.anyHost` | 显式目录查询及已授权的 GPT／MiniMax 生成请求，沿用已保存地址与来源限制 |
+| `fs.read` / `fs.write` | 仅 `bone-media/exports/**` 内交接文件检查与写入，PNG／MP3 由 Agent 授权工具解码 |
 
 网络通过宿主 API 执行，拒绝重定向。接口会校验 URL、拒绝 URL 内嵌凭据及云元数据
 地址；云服务预设约束来源，自定义服务允许 HTTP/HTTPS。
@@ -159,6 +168,7 @@ Agent 可通过原图导出与 Markdown 图片链接完成用户可见展示，�
 
 更新插件前保存当前编辑。重载会从加密文件恢复已保存密钥，无需再次填写。
 不需要为了测试中断其他运行任务。
+PI-Desktop 0.21.0 可能保留升级前的插件页面；若仍显示旧导航，先保存编辑并等任务结束，再禁用／启用本插件以重建页面，无需更新客户端。
 
 ## 开发与测试
 
@@ -170,6 +180,7 @@ node --test tests/*.test.cjs
 python3 tests/settings.browser.py
 python3 tests/generation.browser.py
 python3 tests/records.browser.py
+python3 tests/audio.browser.py
 ```
 
 浏览器检查要求 Python Playwright 与 Chrome。测试自动启动真实插件入口、临时存储和
@@ -201,8 +212,9 @@ node scripts/pack-clean.cjs /absolute/path/to/PI-Desktop
 - [Agent 优先接口与使用流程](docs/agent-image-contract.md)
 - [来源与许可说明](NOTICE.md)
 
-后续阶段：参考图／图生图、远程结果下载、配音和可恢复的视频任务。当前不会把
-其他媒体或模型目录候选标记为已实现执行能力。
+后续阶段：环境音效、音乐、参考图／图生图、远程结果下载和可恢复的视频任务。当前不会把
+未接入的媒体或模型目录候选标记为已实现执行能力。
 
 - [0.4.1 慢响应请求修复与验收](docs/acceptance-image-request-lifetime.md)
 - [统一生成记录与详情弹窗](docs/generation-records-ui.md)
+- [MiniMax 语音与统一记录契约](docs/audio-generation-contract.md)

@@ -146,7 +146,7 @@ class SettingsBrowser(unittest.TestCase):
     def test_01_primary_navigation_and_add_service_dialog(self):
         expect(self.page.get_by_role("tablist", name="媒体服务主导航", exact=True)).to_have_count(1)
         expect(self.page.get_by_role("tablist")).to_have_count(1)
-        expect(self.page.get_by_role("tab")).to_have_count(3)
+        expect(self.page.get_by_role("tab")).to_have_count(4)
         expect(self.page.get_by_role("tab", name="配置", exact=True)).to_have_attribute("aria-selected", "true")
         expect(self.page.locator(".subtabs")).to_have_count(0)
         expect(self.page.get_by_role("heading", name="配置", exact=True)).to_be_visible()

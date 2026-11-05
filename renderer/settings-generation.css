@@ -134,3 +134,19 @@ html.generation-dialog-open { overflow:hidden; }
 @media (prefers-reduced-motion:reduce) {
   .record-dialog[open] { animation:none; }
 }
+
+/* Speech shares the existing form rhythm and keeps native audio controls visible. */
+.audio-voice-controls { display:flex; flex-wrap:wrap; gap:8px; min-width:0; }
+.audio-voice-controls input { flex:1 1 160px; min-width:0; }
+.audio-voice-controls button { flex:none; }
+.audio-voice-status { padding:0 16px 16px; }
+.audio-result { min-width:0; }
+.audio-result audio { display:block; width:100%; min-width:0; max-width:100%; }
+.audio-result audio:focus-visible { outline:2px solid var(--fg); outline-offset:4px; border-radius:var(--radius); }
+.audio-task { min-width:0; }
+.audio-view .record-disclosure { margin-top:16px; }
+.generation-result-actions .muted { overflow-wrap:anywhere; }
+@media (max-width:390px) {
+  .audio-voice-controls input { flex-basis:100%; }
+  .audio-result audio { height:54px; }
+}

@@ -22,10 +22,10 @@
     node.dateTime = date.toISOString();
     text(node, date.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }));
   }
-  function imageIcon() {
+  function mediaIcon(kind = 'image') {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     for (const [key, value] of Object.entries({ width: '20', height: '20', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' })) svg.setAttribute(key, value);
-    svg.innerHTML = '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>';
+    svg.innerHTML = kind === 'audio' ? '<path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/>' : '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>';
     return svg;
   }
   A.recordsController = ({ state: s, disabled, allJobs, getJob, refresh, listState, clearPreview, loadResult, previewView, previewKey }) => {
@@ -43,8 +43,8 @@
       const time = h('time');
       const action = button('查看详情', event => { void open(job.id, event.currentTarget); }, { class: 'record-detail-button', 'aria-label': `查看任务 ${job.id}` });
       const cell = (label, content, className) => h('div', { class: `record-cell ${className}`, role: 'cell' }, h('span', { class: 'record-mobile-label', 'aria-hidden': 'true' }, label), content);
-      const node = h('div', { class: 'record-row', role: 'row', 'data-image-job': job.id },
-        h('div', { class: 'record-task', role: 'cell' }, h('span', { class: 'record-image-icon', 'aria-hidden': 'true' }, imageIcon()), h('strong', {}, '图片生成')),
+      const node = h('div', { class: 'record-row', role: 'row', 'data-record-job': job.id, 'data-record-kind': job.kind, [job.kind === 'audio' ? 'data-audio-job' : 'data-image-job']: job.id },
+        h('div', { class: 'record-task', role: 'cell' }, h('span', { class: 'record-image-icon', 'aria-hidden': 'true' }, mediaIcon(job.kind)), h('strong', {}, job.kind === 'audio' ? '语音合成' : '图片生成')),
         h('div', { class: 'record-cell record-source', role: 'cell' }, channel, model),
         cell('状态', status, 'record-state'), cell('创建时间', time, 'record-time'),
         h('div', { class: 'record-action', role: 'cell' }, action));
@@ -69,7 +69,7 @@
           error,
           h('div', { class: 'records-table', role: 'table', 'aria-label': '生成记录', 'data-generation-list': '' },
             h('div', { class: 'records-columns', role: 'row' }, ['任务', '渠道 / 模型', '状态', '创建时间', '操作'].map(label => h('div', { role: 'columnheader' }, label))), list),
-          empty, h('p', { class: 'records-caption' }, '仅显示本插件任务 · 最多 200 条本地记录'));
+          empty, h('p', { class: 'records-caption' }, '仅显示本插件任务 · 图片、音频各最多 200 条 · 自动更新本地记录'));
       }
       update(); return root;
     }
@@ -107,7 +107,7 @@
           if (list.children[index] !== row.node) list.insertBefore(row.node, list.children[index] || null);
         });
         empty.hidden = Boolean(visible.length);
-        text(empty, loading && !jobs.length ? '正在读取本地记录…' : issue && !jobs.length ? '记录暂不可用，请稍后刷新。' : !jobs.length ? '暂无生成记录。在「生图」中创建，或通过 Agent 生成图片。' : '暂无此状态的任务');
+        text(empty, loading && !jobs.length ? '正在读取本地记录…' : issue && !jobs.length ? '记录暂不可用，请稍后刷新。' : !jobs.length ? '暂无生成记录。在「生图」或「声音」中创建，或通过 Agent 生成。' : '暂无此状态的任务');
       }
       updateDetails();
     }
@@ -123,25 +123,25 @@
       const warning = h('p', { class: 'record-warning', role: 'status', hidden: true });
       const jobError = h('p', { class: 'generation-error', role: 'alert', hidden: true });
       const info = h('dl', { class: 'record-metadata' });
-      for (const label of ['渠道', '模型', '创建时间', '请求尺寸', '实际尺寸', '质量', '数量']) {
+      for (const label of ['渠道', '模型', '创建时间', '请求尺寸', '实际尺寸', '质量', '数量', '格式', '时长', '采样率', '声道', '音色 ID', '语速']) {
         const value = label === '创建时间' ? h('time') : h('span');
         const dd = h('dd', {}, value), dt = h('dt', {}, label);
         meta.set(label, { value, dt, dd }); info.append(dt, dd);
       }
       const finance = h('p', { class: 'record-finance', hidden: true }, '费用状态未知，以供应商账单为准。');
-      const preview = h('div', { class: 'record-preview', 'aria-label': '生成图片' });
-      const prompt = h('p', { class: 'record-prompt-text' });
+      const preview = h('div', { class: 'record-preview', 'aria-label': '生成结果' });
+      const prompt = h('p', { class: 'record-prompt-text' }), promptLabel = h('summary', {}, '提示词');
       const id = h('dd'), hash = h('dd');
       const content = h('div', { class: 'record-dialog-content', hidden: true },
         h('div', { class: 'record-detail-grid' }, preview, h('div', { class: 'record-detail-meta' },
           h('div', { class: 'record-detail-state' }, status), warning, jobError, info, finance)),
-        h('details', { class: 'record-disclosure' }, h('summary', {}, '提示词'), prompt),
+        h('details', { class: 'record-disclosure' }, promptLabel, prompt),
         h('details', { class: 'record-disclosure' }, h('summary', {}, '技术详情'),
           h('dl', { class: 'record-metadata record-technical' }, h('dt', {}, '任务 ID'), id, h('dt', {}, '请求摘要'), hash)));
       const body = h('div', { class: 'record-dialog-body' }, loading, failure, content);
       dialog = h('dialog', { class: 'record-dialog', 'aria-label': '生成详情' },
         h('header', { class: 'record-dialog-heading' }, h('h2', {}, '生成详情'), close), body);
-      parts = { close, loading, failure, errorText, retry, status, warning, jobError, finance, preview, prompt, id, hash, body, content };
+      parts = { close, loading, failure, errorText, retry, status, warning, jobError, finance, preview, prompt, promptLabel, id, hash, body, content };
       dialog.addEventListener('cancel', event => { event.preventDefault(); closeDetails(); });
       dialog.addEventListener('close', () => { if (!dialog.open && selectedId) closeDetails(); });
       dialog.addEventListener('keydown', event => {
@@ -203,27 +203,32 @@
       if (!job) return;
       dialog.setAttribute('data-generation-job', job.id);
       badge(parts.status, job);
-      const request = job.request;
-      const values = { '渠道': job.profileName, '模型': request.modelId, '创建时间': job.createdAt, '请求尺寸': request.size?.replace('x', ' × '), '实际尺寸': job.result ? `${job.result.width} × ${job.result.height}` : null, '质量': qualities[request.quality] || request.quality, '数量': `${request.n || 1} 张` };
-      for (const [label, value] of Object.entries(values)) {
-        const item = meta.get(label);
-        item.dt.hidden = item.dd.hidden = label === '实际尺寸' && !value;
+      const request = job.request, audio = job.kind === 'audio';
+      const values = { '渠道': job.profileName, '模型': request.modelId, '创建时间': job.createdAt,
+        ...(audio ? { '格式': 'MP3', '时长': job.result && A.audioDuration(job.result.durationMs), '采样率': job.result && `${job.result.sampleRate} Hz`, '声道': job.result?.channels, '音色 ID': request.voiceId, '语速': `${request.speed} ×` }
+          : { '请求尺寸': request.size?.replace('x', ' × '), '实际尺寸': job.result ? `${job.result.width} × ${job.result.height}` : null, '质量': qualities[request.quality] || request.quality, '数量': `${request.n || 1} 张` }) };
+      for (const [label, item] of meta) {
+        const value = values[label];
+        item.dt.hidden = item.dd.hidden = value === null || value === undefined;
         if (label === '创建时间') timestamp(item.value, value); else text(item.value, value);
       }
-      const warning = job.state === 'unknown' ? '提交结果待核对，可能已收费。请勿重复生成。' : job.state === 'result-pending' ? '本地图片暂不可用，请刷新记录核对。不会重新生成。' : !states[job.state] ? '任务状态待核对，请刷新本地记录。' : '';
+      const warning = job.state === 'unknown' ? '提交结果待核对，可能已收费。请勿重复生成。' : job.state === 'result-pending' ? `本地${audio ? '音频' : '图片'}暂不可用，请刷新记录核对。不会重新生成。` : !states[job.state] ? '任务状态待核对，请刷新本地记录。' : '';
       text(parts.warning, warning); parts.warning.hidden = !warning;
       const jobError = job.error ? A.errorText(job.error) : job.state === 'failed' ? '生成未完成，此任务不会自动重试。' : '';
       text(parts.jobError, jobError); parts.jobError.hidden = !jobError;
       parts.finance.hidden = job.charging !== 'unknown' || job.state === 'unknown';
-      text(parts.prompt, request.prompt ?? '此记录未提供提示词。'); text(parts.id, job.id); text(parts.hash, job.requestHash);
+      text(parts.promptLabel, audio ? '朗读文本' : '提示词');
+      text(parts.prompt, (audio ? request.text : request.prompt) ?? '此记录未提供文本。'); text(parts.id, job.id); text(parts.hash, job.requestHash);
       const key = `${job.id}:${job.state}:${previewKey()}:${disabled()}`;
       if (lastPreview !== key) {
         lastPreview = key;
-        const output = job.result ? previewView(job) : h('div', { class: 'record-preview-empty' }, imageIcon(),
-          h('strong', {}, job.state === 'submitting' ? '图片生成中' : job.state === 'prepared' ? '等待确认生成' : '暂无可用图片'),
+        const output = job.result ? previewView(job) : h('div', { class: 'record-preview-empty' }, mediaIcon(job.kind),
+          h('strong', {}, job.state === 'submitting' ? (audio ? '语音合成中' : '图片生成中') : job.state === 'prepared' ? '等待确认生成' : (audio ? '暂无可用音频' : '暂无可用图片')),
           h('p', {}, job.state === 'submitting' ? '正在更新本地任务状态' : job.state === 'prepared' ? '此处仅查看已准备的请求' : '结果保留在本地任务记录中'));
-        if (parts.preview.contains(document.activeElement)) parts.close.focus({ preventScroll: true });
-        parts.preview.replaceChildren(output);
+        if (parts.preview.firstChild !== output) {
+          if (parts.preview.contains(document.activeElement)) parts.close.focus({ preventScroll: true });
+          parts.preview.replaceChildren(output);
+        }
       }
       if (showing(job.id) && job.state === 'succeeded' && job.result) void loadResult(job);
     }

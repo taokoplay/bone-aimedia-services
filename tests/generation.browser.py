@@ -179,7 +179,7 @@ class GenerationBrowser(unittest.TestCase):
 
     def test_success_prepare_confirm_decode_download_and_history(self):
         expect(self.page.get_by_role("tab", name="配置", exact=True)).to_have_attribute("aria-selected", "true")
-        expect(self.page.get_by_role("tab")).to_have_count(3)
+        expect(self.page.get_by_role("tab")).to_have_count(4)
         self.fill_request()
         self.pick("图片尺寸", "1536x1024")
         self.pick("图片质量", "高")
@@ -367,7 +367,7 @@ class GenerationBrowser(unittest.TestCase):
           const invoke = window.pluginBridge.invoke;
           window.pluginBridge.invoke = async (channel, payload) => {
             const result = await invoke(channel, payload);
-            if (payload?.channel === 'aimedia.image.get') {
+            if (payload?.channel === 'aimedia.records.get') {
               await new Promise(resolve => window.__releaseDetails = resolve);
               window.__detailsReleased = true;
             }

@@ -1,6 +1,6 @@
 ---
 name: ai-media-services
-description: "Use configured Bone AI media models from the Agent conversation: generate images, GPT 生图, 文生图, 用已配置模型画图, create illustrations and image assets. Discover exact tools, choose configured models, submit authorized single images, return results and export original PNGs without opening a panel."
+description: "Use configured Bone AI media models from Agent conversations: GPT 生图, 文生图, MiniMax 语音合成, 文本朗读, generate images or speech. Discover models and voices, submit one authorized task, query unified local records and export PNG/MP3 originals. Environmental sound effects and music are not implemented."
 ---
 
 # Agent-driven Bone AI media services
@@ -8,14 +8,15 @@ description: "Use configured Bone AI media models from the Agent conversation: g
 Use this plugin when the user requests it or names one of its configured services.
 Do not silently substitute the host GenerateImages tool or another generator.
 The Configuration page is for setup; daily generation is driven from conversation.
-Version 0.4 adds Agent-first tools and retains the eight version-0.3 tools.
+Version 0.5 adds MiniMax speech tools while retaining the twelve image/discovery tools.
 
 ## Discover and select
 
-1. Discover actual names with ToolSearch (search media_catalog, generate_image,
-   image_job, export_image_result). Host prefixes are not part of the local names.
-2. Call media_catalog with action=list and kind=image. It returns modelRef, service
-   and model names, ready/blockedBy, defaults and supported size/quality parameters.
+1. Discover actual names with ToolSearch (media_catalog; generate_image/image_job/
+   export_image_result; generate_audio/audio_job/audio_voices/export_audio_result).
+   Host prefixes are not part of the local names.
+2. Call media_catalog with action=list and kind=image or audio. It returns modelRef,
+   operation-specific constraints, defaults and ready/blockedBy evidence.
 3. If the user named a service/model, match both and pass its exact modelRef.
    An unavailable explicit target is a reason to report/clarify, never to switch.
 4. Otherwise omit modelRef: the plugin uses this session's most recent explicit
@@ -23,11 +24,39 @@ Version 0.4 adds Agent-first tools and retains the eight version-0.3 tools.
    selection-required returns choices; ask one concise model-selection question.
    Do not choose the first item merely because it was listed first.
 
-Only configured OpenAI gpt-image-* text-to-image is implemented. Other saved image,
-video/audio models and ComfyUI workflows may appear in the catalog with unavailable
-operations. Configuration readiness does not prove supplier access or entitlement.
+Configured OpenAI gpt-image-* text-to-image and supported MiniMax speech-* models
+are implemented. Other image/video/audio models and ComfyUI workflows may appear
+with unavailable operations. Readiness does not prove supplier access or entitlement.
 No tool installation or model registration into the client's global settings is
 required beyond installing/enabling this plugin with the applicable host grants.
+
+## Speech generation
+
+For speech, use audio_voices with the selected MiniMax modelRef when an explicit
+voice ID is needed. This is a read-only supplier query and does not generate or
+set a default voice. Choose a voice matching the user's request; ask a concise
+question if the requested voice cannot be determined. Do not invent voice IDs.
+
+Call generate_audio with operation=speech, the exact text to speak, an explicit
+voiceId and stable requestKey; optional modelRef, speed (0.5–2, default 1) and waitMs.
+Text is bounded to 1000 characters and the result is one MP3. Model resolution,
+host invocation lifetime, uncertainty and no-retry rules are the same as images.
+Use audio_job get/wait/list/result for the same job, never generate again to read it.
+The shared process budget permits at most two active image/audio requests.
+
+Footsteps, ambience, environmental sound effects and music are NOT speech. When
+asked for these, explain that this plugin does not implement the requested
+operation. Never send the sound-effect description as speech, silently synthesize
+locally, invent a provider API, or mark an external file as a plugin-generated job.
+
+Completed speech is automatically visible in Generation Records with channel,
+model and state. The detail dialog provides browser-decoded playback and download.
+audio_job.result returns verified metadata and an export next action, not an
+unsupported audio content block or a Base64 text dump. For conversation delivery,
+call export_audio_result and execute the returned fixed decoder as below; verify
+the MP3 exists, then return a clickable file link or a local audio-player preview.
+Structural MP3 validation is not a listening-quality review. No workspace prevents
+Agent export, but the original audio remains available in the plugin's records.
 
 ## Generate and resume
 
@@ -43,7 +72,7 @@ invocation until the HTTP exchange and result persistence finish. HTTP timeout i
 waitMs remains accepted for local waiting on existing tasks, not for truncating
 new submissions. Legacy submit_image follows the same ownership rule.
 
-A clear user request to generate one image authorizes that specified operation;
+A clear user request for one image or spoken audio authorizes that specified operation;
 do not ask again for the same scope. The host can still enforce its own approval.
 Installation grants are not blanket permission for unlimited charges. Never invent
 pricing, refunds or a budget guarantee. Do not add unrequested variants.
@@ -57,7 +86,7 @@ jobId or image_job action=list for this calling session. Do not bypass unknown s
 by creating a new key or changing providers.
 
 Unknown means provider acceptance or billing may be unresolved. failed is not a
-refund guarantee. result-pending means no verified local image is available.
+refund guarantee. result-pending means no verified local media is available.
 Host interruption can stop local result delivery without proving remote work was
 cancelled. TOOL_ABORTED, TIMEOUT and NETWORK_ERROR all require checking the same
 job and provider records before another billable request; none implies a refund.
@@ -74,20 +103,20 @@ Images larger than the inline limit return export-required; the original remains
 stored. A format/hash check is not a visual-quality verdict.
 
 When the user needs a file, an inline result cannot be displayed by this client,
-or the task requires an image asset in the workspace:
+or the task requires a generated asset in the workspace:
 
-1. Call export_image_result with jobId. This writes only into the authorized
-   bone-media/exports/** scope and does not generate or charge again.
+1. Call export_image_result or export_audio_result with the corresponding jobId.
+   This only writes within bone-media/exports/** and never generates or charges again.
 2. A handoff-ready response includes workspacePath, command, outputPath, byteLength
-   and sha256. The PNG has NOT yet been created at this stage.
+   and sha256. The PNG/MP3 has NOT yet been created at this stage.
 3. Run the fixed returned decoder using the Agent's own approved execution tool,
    with cwd set to workspacePath. Use structured cwd where supported or proper
    POSIX quoting; never interpolate untrusted shell text or reconstruct Base64.
    The generated decoder is fixed plugin code. It accepts no extra arguments.
 4. Require a zero exit and `{ok:true,path,sha256,byteLength}` matching the tool result.
-   The decoder creates the PNG exclusively, verifies it and removes only unchanged
+   The decoder creates the PNG/MP3 exclusively, verifies it and removes only unchanged
    handoff files. It will not overwrite an existing output or follow a symlink.
-5. Return a clickable workspace file/image reference. Do not claim the PNG exists
+5. Return a clickable workspace file/image reference. Do not claim the output exists
    merely because handoff-ready was returned. If decode fails, retain the job and
    report the failure; a fresh export does not require or justify regeneration.
 
@@ -99,7 +128,7 @@ workspace checks do not provide an atomic pinned-root guarantee.
 
 ## Modes, credentials and compatibility
 
-media_catalog.list and image_job get/wait/list/result declare plan-safe actions.
+media_catalog.list, image_job and audio_job get/wait/list/result declare plan-safe actions.
 The installed PI-Desktop 0.21.0 worker drops this declaration, so Plan mode
 does not expose these tools there. Report this host limitation rather than bypassing
 the mode. Normal Agent mode discovery and execution are verified.
@@ -118,10 +147,13 @@ never require a client upgrade as a hidden part of this plugin-only workflow.
 
 Existing get_capabilities/list_profiles/list_workflows and prepare_image/
 submit_image/get_image_job/list_image_jobs/read_image_result remain available for
-old callers. Prefer the four simplified tools in new Agent workflows.
+old callers. Prefer the simplified image/audio tools in new Agent workflows.
 
 ComfyUI browsing is read-only; remote tasks may belong to others. Image editing,
-video/audio execution and automatic remote reconciliation are not implemented.
+video, environmental sound effects, music and remote reconciliation are not implemented.
 Film Factory may register/adopt an exported workspace result with its own explicit
 revision and authorization rules; generation never adopts or approves media.
-See ../../docs/agent-image-contract.md for the current contract and acceptance scope.
+See ../../docs/agent-image-contract.md and ../../docs/audio-generation-contract.md.
+If an upgraded 0.21.0 client retains the old plugin page, save edits and wait for
+generation to finish, then disable/re-enable this plugin to destroy the cached
+view. Closing the tab or reloading only the plugin backend may reuse the old page.

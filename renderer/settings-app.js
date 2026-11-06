@@ -490,7 +490,7 @@
   }
   function render() {
     if (!s.alive) return;
-    const header = h('header', {}, h('div', { class: 'brand' }, h('h1', {}, 'AI 媒体服务', h('span', { class: 'title-version' }, '0.5.0'))),
+    const header = h('header', {}, h('div', { class: 'brand' }, h('h1', {}, 'AI 媒体服务', h('span', { class: 'title-version' }, '0.5.1'))),
       h('p', { class: 'capability' }, 'GPT 文生图 · MiniMax 语音合成'));
     const nav = navView(screens, s.screen, 'main', '媒体服务主导航', 'main-panel', id => navigate(s.tab, id, `main-${id}`));
     const main = h('div', { id: 'main-panel', role: 'tabpanel', 'aria-labelledby': `main-${s.screen}` });

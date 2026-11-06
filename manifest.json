@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "bone.aimedia.services",
   "name": "Bone AI 媒体服务",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Agent-driven GPT image and MiniMax speech generation with encrypted configuration, durable jobs, unified records, preview/playback and permission-scoped workspace export.",
   "main": "main.js",
   "contributes": {

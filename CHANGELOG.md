@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1
+
+- Republish the verified image/speech workflow with intact UTF-8 source files.
+  The initial marketplace 0.5.0 MCP upload incorrectly converted non-ASCII
+  text during request transport; the GitHub 0.5.0 asset was unaffected.
+- Keep generation behavior, credentials, task storage and permissions unchanged.
+  Prefer 0.5.1 when installing from the marketplace.
+
 ## 0.5.0
 
 - Add MiniMax speech synthesis through configured models and explicit voice IDs,

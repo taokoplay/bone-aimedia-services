@@ -7,8 +7,10 @@ description: "Use configured Bone AI media models from Agent conversations: GPT 
 
 Use this plugin when the user requests it or names one of its configured services.
 Do not silently substitute the host GenerateImages tool or another generator.
-The Configuration page is for setup; daily generation is driven from conversation.
-Version 0.5 adds MiniMax speech tools while retaining the twelve image/discovery tools.
+The panel has only Configuration and Generation Records. Configure services once,
+then generate from conversation; do not direct users to removed image/audio forms.
+Records provides local progress, image preview, speech playback and downloads.
+All sixteen tools remain available, including legacy image/discovery contracts.
 
 ## Discover and select
 

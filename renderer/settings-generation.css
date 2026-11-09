@@ -1,22 +1,12 @@
-/* Image generation retains DutyDeck tokens. Records use 4/8px rhythm, 80px rows,
- * restrained status colors, and one native dialog with stable scroll and focus. */
+/* Records retain DutyDeck tokens, balanced columns, and a native dialog
+ * with stable scroll, focus, and media playback. */
 .generation-view { min-width:0; }
-.generation-view > .note { padding:0 0 16px; }
-.generation-view form + section { margin-top:24px; }
-.generation-detail { padding:16px; overflow-wrap:anywhere; }
-.generation-detail > .note { padding:8px 0; }
-.generation-request { display:grid; grid-template-columns:90px minmax(0,1fr); gap:8px 16px; margin:16px 0; font-size:13px; }
-.generation-request dt { color:var(--muted); }
-.generation-request dd { margin:0; min-width:0; overflow-wrap:anywhere; }
-.generation-prompt { border-top:1px solid var(--line); padding-top:12px; }
-.generation-prompt p { margin-top:8px; white-space:pre-wrap; overflow-wrap:anywhere; max-height:240px; overflow:auto; }
-.generation-actions, .generation-result-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:16px; }
+.generation-result-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:16px; }
 .generation-error { margin:12px 0; padding:8px 0; color:var(--danger); overflow-wrap:anywhere; }
 .generation-result { margin-top:20px; border-top:1px solid var(--line); padding-top:16px; }
 .generation-result img { display:block; width:auto; max-width:100%; max-height:560px; height:auto; object-fit:contain; border-radius:var(--radius); }
 .generation-download { color:var(--fg); display:inline-block; border:1px solid var(--border); border-radius:var(--radius); padding:7px 12px; min-height:36px; text-decoration:none; }
 .generation-download:hover { background:var(--hover); }
-.generation-view .row > button { flex-shrink:0; }
 
 .generation-records, .record-dialog { --record-warning:#e7c084; --record-progress:#a6c6f4; }
 :root[data-base="light"] .generation-records, :root[data-base="light"] .record-dialog { --record-warning:#8b5b18; --record-progress:#2c64a8; }
@@ -34,7 +24,7 @@
 .records-unresolved, .records-caption { font-size:12px; color:var(--muted); }
 .records-caption { padding:12px 0; }
 .records-table { border:1px solid var(--border); border-radius:8px; background:var(--surface); }
-.records-columns, .record-row { display:grid; grid-template-columns:minmax(120px,1fr) minmax(160px,2fr) 80px 136px 80px; gap:16px; align-items:center; padding:12px 16px; }
+.records-columns, .record-row { display:grid; grid-template-columns:minmax(120px,1.1fr) minmax(160px,1.25fr) minmax(80px,.7fr) minmax(136px,1fr) 80px; gap:16px; align-items:center; padding:12px 16px; }
 .records-columns { min-height:40px; padding-block:10px; color:var(--muted); font-size:12px; border-bottom:1px solid var(--border); }
 .records-columns > :last-child { text-align:right; }
 .record-row { min-height:80px; font-size:13px; }
@@ -43,6 +33,8 @@
 .record-row > *, .record-cell { min-width:0; }
 .record-task { display:flex; align-items:center; gap:12px; }
 .record-task strong { font-size:13px; font-weight:500; white-space:nowrap; }
+.record-task-copy { display:flex; flex-direction:column; align-items:flex-start; gap:4px; min-width:0; }
+.record-project-tag { display:block; max-width:100%; box-sizing:border-box; padding:1px 6px; border:1px solid var(--border); border-radius:4px; background:var(--input); color:var(--muted); font-size:11px; font-weight:400; line-height:16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .record-image-icon { display:grid; place-items:center; width:36px; height:40px; flex:none; border:1px solid var(--border); border-radius:6px; color:var(--muted); background:var(--input); }
 .record-value { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .record-source { display:grid; gap:4px; }
@@ -98,7 +90,7 @@ html.generation-dialog-open { overflow:hidden; }
 .record-technical { font-size:12px; }
 @keyframes record-dialog-enter { from { opacity:0; transform:translateY(8px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }
 @media (max-width:840px) {
-  .records-columns, .record-row { grid-template-columns:minmax(110px,1fr) minmax(120px,2fr) 76px 116px 68px; gap:8px; padding-inline:12px; }
+  .records-columns, .record-row { grid-template-columns:minmax(110px,1.1fr) minmax(120px,1.25fr) minmax(76px,.7fr) minmax(116px,1fr) 68px; gap:8px; padding-inline:12px; }
   .record-task { gap:8px; }
   .record-image-icon { width:28px; height:34px; }
   .record-detail-button { padding-inline:4px; }
@@ -121,10 +113,6 @@ html.generation-dialog-open { overflow:hidden; }
   .record-dialog-body { padding:16px; }
 }
 @media (max-width:390px) {
-  .generation-detail { padding:12px; }
-  .generation-request { grid-template-columns:74px minmax(0,1fr); gap:8px; }
-  .generation-actions > button { max-width:100%; }
-  .generation-view .heading { gap:8px; }
   .record-filters { width:100%; gap:2px; padding:3px; }
   .record-filters button { flex:1; gap:4px; padding:5px 4px; font-size:12px; }
   .record-row { padding:12px; gap:8px; }
@@ -135,18 +123,11 @@ html.generation-dialog-open { overflow:hidden; }
   .record-dialog[open] { animation:none; }
 }
 
-/* Speech shares the existing form rhythm and keeps native audio controls visible. */
-.audio-voice-controls { display:flex; flex-wrap:wrap; gap:8px; min-width:0; }
-.audio-voice-controls input { flex:1 1 160px; min-width:0; }
-.audio-voice-controls button { flex:none; }
-.audio-voice-status { padding:0 16px 16px; }
+/* Keep native audio controls visible in record previews. */
 .audio-result { min-width:0; }
 .audio-result audio { display:block; width:100%; min-width:0; max-width:100%; }
 .audio-result audio:focus-visible { outline:2px solid var(--fg); outline-offset:4px; border-radius:var(--radius); }
-.audio-task { min-width:0; }
-.audio-view .record-disclosure { margin-top:16px; }
 .generation-result-actions .muted { overflow-wrap:anywhere; }
 @media (max-width:390px) {
-  .audio-voice-controls input { flex-basis:100%; }
   .audio-result audio { height:54px; }
 }

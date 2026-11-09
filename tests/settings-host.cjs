@@ -12,12 +12,15 @@ const root = path.resolve(__dirname, "..");
   let releaseImage = null, releaseAudio = null;
   const perKind = { image: 0, audio: 0, voices: 0, other: 0 };
   const calls = {};
+  let project = { status: 'unavailable' };
   const crypto = require("./settings-service-fixture.cjs").testSecrets();
   const secrets = { ...crypto };
   globalThis.pi = {
     plugin: { getDataPath: async () => temporary, getManifest: async () => JSON.parse(await fs.readFile(path.join(root, "manifest.json"), "utf8")) },
     commands: { register: async () => {}, unregister: async () => {} }, ui: { revealView: async () => {} },
     agent: { registerTool: async t => tools.set(t.name, t), unregisterTool: async name => tools.delete(name) },
+    session: { getActive: async () => project.status === 'unavailable' ? undefined : { sessionId: 'synthetic-browser-session', projectPath: project.status === 'none' ? null : '/fixture/projects/active' } },
+    workspace: { get: async () => project.status === 'unavailable' ? undefined : project.status === 'none' ? null : { path: '/fixture/projects/active', name: project.name } },
     net: { fetch: async input => {
       network++;
       const route = new URL(input.url).pathname;
@@ -89,6 +92,10 @@ const root = path.resolve(__dirname, "..");
         const { channel, payload } = JSON.parse(raw);
         let result;
         if (channel === 'fixture.metrics') result = { network, requestCount: network, perKind, calls, tools: [...tools.keys()], unchanged: true };
+        else if (channel === 'fixture.project') {
+          if (!['project', 'none', 'unavailable'].includes(payload?.status) || payload.status === 'project' && (typeof payload.name !== 'string' || payload.name.length > 400)) throw Error('Invalid fixture project');
+          project = { ...payload }; result = { ok: true };
+        }
         else if (channel === "fixture.imageRelease") { if (!["success", "failed"].includes(payload?.outcome)) throw Error("Invalid image fixture outcome"); if (!releaseImage) throw Error("No image fixture is pending"); releaseImage(payload.outcome); result = { ok: true }; }
         else if (channel === 'fixture.audioRelease') { if (!['success', 'failed'].includes(payload?.outcome)) throw Error('Invalid audio fixture outcome'); if (!releaseAudio) throw Error('No audio fixture is pending'); releaseAudio(payload.outcome); result = { ok: true }; }
         else if (channel === "fixture.restart") { await plugin.onUnload(); await plugin.onLoad(); result = { ok: true }; }

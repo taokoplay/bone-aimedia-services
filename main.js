@@ -17,12 +17,13 @@ const { createAgentAudioService } = require("./lib/agent-audio-service.js");
 const { createAgentAudioTools } = require("./tools/agent-audio.js");
 const { createAudioResultExporter } = require("./lib/audio-result-export.js");
 const { createGenerationRecords } = require("./lib/generation-records.js");
+const { createProjectCapture } = require("./lib/generation-project.js");
 const COMMAND_ID = "bone.aimedia.services.open";
 const VIEW_ID = "settings";
 function error(code, message) { return Object.assign(new Error(message), { code }); }
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
 let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, records = null;
-let version = "0.5.1";
+let version = "0.5.4";
 let registered = [];
 let registrationErrors = [];
 function safeFailure(failure) {
@@ -60,10 +61,10 @@ async function access(method, payload) {
   if (!current) throw error("UNAVAILABLE", "媒体配置服务尚未加载。");
   try { return await current[method](payload); } catch (failure) { throw safeFailure(failure); }
 }
-async function imageAccess(method, payload) {
+async function imageAccess(method, payload, context) {
   const current = images;
   if (!current) throw error("UNAVAILABLE", "生图服务尚未加载。");
-  try { return await current[method](payload); } catch (failure) { throw safeFailure(failure); }
+  try { return method === "prepare" ? await current.prepare(payload, undefined, context) : await current[method](payload); } catch (failure) { throw safeFailure(failure); }
 }
 async function audioAccess(method, payload) {
   const current = audio;
@@ -85,7 +86,7 @@ async function agentAccess(method, payload, ctx) {
   if (!current) throw error("DISPOSED", "Agent image service is not loaded.");
   return current[method](payload, ctx);
 }
-const tools = [...createDiscoveryTools({ read: () => access("read"), getVersion: () => version }), ...createImageTools({ access: imageAccess }), ...createAgentImageTools({ access: agentAccess }), ...createAgentAudioTools({ access: agentAudioAccess })];
+const tools = [...createDiscoveryTools({ read: () => access("read"), getVersion: () => version }), ...createImageTools({ access: (method, input, ctx) => imageAccess(method, input, ctx ?? null) }), ...createAgentImageTools({ access: agentAccess }), ...createAgentAudioTools({ access: agentAudioAccess })];
 async function clearRuntime() {
   const old = settings, oldImages = images, oldAgent = agentImages, oldAudio = audio, oldAgentAudio = agentAudio;
   settings = null; images = null; agentImages = null; audio = null; agentAudio = null; records = null;
@@ -108,9 +109,9 @@ async function onLoad() {
     return pi.net.fetch(input);
   };
   settings = createMediaProviderSettings({ getDataPath: () => dataPath, secrets: createSecrets({ getDataPath: () => dataPath }), request });
-  const budget = createGenerationBudget(2);
-  images = createImageGeneration({ getDataPath: () => dataPath, settings, request, budget });
-  audio = createAudioGeneration({ getDataPath: () => dataPath, settings, request, budget });
+  const budget = createGenerationBudget(2), captureProject = createProjectCapture(pi);
+  images = createImageGeneration({ getDataPath: () => dataPath, settings, request, budget, captureProject });
+  audio = createAudioGeneration({ getDataPath: () => dataPath, settings, request, budget, captureProject });
   agentImages = createAgentImageService({ settings, images, exporter: createImageResultExporter({ host: pi, readResult: images.resultBytes }) });
   agentAudio = createAgentAudioService({ settings, audio, exporter: createAudioResultExporter({ host: pi, readResult: audio.resultBytes }) });
   records = createGenerationRecords({ images, audio });

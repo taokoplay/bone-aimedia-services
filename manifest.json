@@ -1,9 +1,26 @@
 {
   "schemaVersion": 1,
   "id": "bone.aimedia.services",
-  "name": "Bone AI 媒体服务",
-  "version": "0.5.1",
+  "name": "AI媒体生成服务",
+  "version": "0.5.4",
   "description": "Agent-driven GPT image and MiniMax speech generation with encrypted configuration, durable jobs, unified records, preview/playback and permission-scoped workspace export.",
+  "author": "taokoplay",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://github.com/taokoplay/bone-aimedia-services",
+  "categories": ["ai", "media"],
+  "safetyNotes": "Authorized generation sends prompts or spoken text to the configured provider and may incur provider charges. Credentials are encrypted with a macOS Keychain-backed key. Workspace file access is limited to bone-media/exports/** for verified image or speech handoffs; the Agent executes the decoder. Unknown tasks are never automatically resubmitted. No environmental sound effects, music, video or ComfyUI execution is implemented.",
+  "i18n": {
+    "en": {
+      "name": "AI Media Services",
+      "description": "Generate GPT images and MiniMax speech from Agent conversations. Configure encrypted services, track image and audio jobs with project labels, preview or play results, and export original PNG or MP3 files.",
+      "safetyNotes": "Authorized generation sends prompts or spoken text to the configured provider and may incur provider charges. Credentials are encrypted with a macOS Keychain-backed key. Workspace file access is limited to bone-media/exports/** for verified image or speech handoffs; the Agent executes the decoder. Unknown tasks are never automatically resubmitted. No environmental sound effects, music, video or ComfyUI execution is implemented."
+    },
+    "zh-CN": {
+      "name": "AI媒体生成服务",
+      "description": "通过 Agent 对话生成 GPT 图片和 MiniMax 语音。配置加密服务，按项目标签查看图片与音频任务，预览或试听结果，并导出原始 PNG、MP3 文件。",
+      "safetyNotes": "经授权的生成会将提示词或朗读文本发送至已配置供应商，可能产生供应商费用。凭据使用 macOS 钥匙串主密钥加密。工作区文件访问仅限 bone-media/exports/**，用于已验证图片或语音的交接，由 Agent 执行解码。结果未知的任务不会自动重试。暂不支持环境音效、音乐、视频和 ComfyUI 执行。"
+    }
+  },
   "main": "main.js",
   "contributes": {
     "views": [

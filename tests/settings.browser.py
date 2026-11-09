@@ -146,7 +146,7 @@ class SettingsBrowser(unittest.TestCase):
     def test_01_primary_navigation_and_add_service_dialog(self):
         expect(self.page.get_by_role("tablist", name="媒体服务主导航", exact=True)).to_have_count(1)
         expect(self.page.get_by_role("tablist")).to_have_count(1)
-        expect(self.page.get_by_role("tab")).to_have_count(4)
+        expect(self.page.get_by_role("tab")).to_have_text(["配置", "生成记录"])
         expect(self.page.get_by_role("tab", name="配置", exact=True)).to_have_attribute("aria-selected", "true")
         expect(self.page.locator(".subtabs")).to_have_count(0)
         expect(self.page.get_by_role("heading", name="配置", exact=True)).to_be_visible()
@@ -388,7 +388,7 @@ class SettingsBrowser(unittest.TestCase):
         main = self.page.get_by_role("tab", name="配置", exact=True)
         main.focus()
         self.page.keyboard.press("ArrowRight")
-        expect(self.page.get_by_role("tab", name="生图", exact=True)).to_be_focused()
+        expect(self.page.get_by_role("tab", name="生成记录", exact=True)).to_be_focused()
         self.page.keyboard.press("Home")
         self.page.get_by_role("button", name="添加服务", exact=True).click()
         dialog = self.page.get_by_role("dialog")

@@ -5,7 +5,7 @@ function createImageTools({ access }) {
   return [
     { name: "prepare_image", risk: "medium", description: "准备一张 GPT 文生图请求并持久化参数；不联网、不收费。必须指定已保存服务、配置版本和该服务的 GPT 图片模型。返回任务 ID 和请求哈希供确认。",
       schema: object({ requestId: string("每次新请求生成 UUID v4；相同请求重试使用原 UUID"), profileId: string("已启用的 OpenAI 服务 ID"), expectedRevision: { type: "integer", minimum: 0 }, modelId: string("已配置的 gpt-image-* 模型 ID"), prompt: { type: "string", minLength: 1, maxLength: 8000 }, size: { type: "string", enum: ["1024x1024", "1536x1024", "1024x1536"] }, quality: { type: "string", enum: ["low", "medium", "high"] } }),
-      execute: input => access("prepare", input) },
+      execute: (input, ctx) => access("prepare", input, ctx) },
     { name: "submit_image", risk: "high", description: "按准备好的任务提交一次 GPT 生图，可能收费；须已有用户授权并传 confirm=true。保持调用直至本次请求结束并保存结果，网络上限90秒。同一任务不会重复生成。超时或 unknown 不得盲目新建重试。",
       schema: object({ jobId: string("prepare_image 返回的任务 ID"), requestHash: string("准备阶段返回的精确请求哈希"), confirm: { type: "boolean", enum: [true] } }),
       execute: input => access("submitAndWait", input) },

@@ -8,7 +8,7 @@
 - 许可证：[AGPL-3.0-only](LICENSE)
 
 **在对话中说明服务、模型和画面，或明确朗读文本与音色，Agent 可生成一张 PNG 或一段 MP3，并写入统一生成记录。**
-环境音效（如脚步声）、音乐、图生图、视频和 ComfyUI 执行尚未接入；不会把音效请求改成朗读或本地合成。
+Environmental sound effects, music, video and ComfyUI execution remain unavailable. Reference-image generation requires the Host binary-upload capability described below.
 
 ## 界面与功能
 
@@ -43,7 +43,7 @@
 
 | 服务 | 本版支持 | 明确未实现 |
 |---|---|---|
-| OpenAI 图片生成 | HTTP/HTTPS 地址、加密密钥、`GET /models`；已配置 GPT 模型文生图、PNG 预览与下载 | 图片编辑、批量生成、URL 结果下载 |
+| OpenAI images | Encrypted configuration, model discovery, GPT text generation and reference-image edits on a capable Host; PNG preview/export | Masks, multiple outputs, URL result downloads |
 | 小米 MiMo | 配音模型、音色、格式；`GET /models` | 实际语音合成、克隆或音色设计 |
 | MiniMax | 模型／音色目录；已配置 speech 系列语音朗读、MP3 试听与下载 | 环境音效、音乐、图像与视频生成 |
 | ComfyUI | 系统与节点发现、模型目录、远端工作流列表与详情；本地 API 工作流校验 | 上传输入、提交任务、取消远端任务和下载生成结果 |
@@ -123,6 +123,19 @@ ComfyUI 工作流采用 API 格式 JSON，记录名称、输出媒体类型、�
 
 > 用媒体服务中的传贝GPT、GPT Image 2，低质量 1024×1024，生成一张白底蓝色陶瓷杯；只提交一次。
 
+Reference-image requests use the same configured GPT model through `/images/edits`.
+The Agent stages user-designated PNG/JPEG/WebP files under `bone-media/references/`
+and supplies their paths and SHA-256 values as `referenceImages`. Limits are
+16 files, 4 MiB per file and 12 MiB combined. The manual image page remains text-only.
+This feature explicitly requires an updated Host advertising binary HTTP requests;
+installing this plugin alone does not add it to PI-Desktop 0.21.0. Older Hosts
+continue to support the existing text/speech workflow and reject references before
+submission. See the [reference-image contract](docs/gpt-image-reference-contract.md).
+Reference support diagnostics are shared by model discovery, Agent capabilities
+and the panel. `referenceImages.blockedBy` explains missing APIs, insufficient
+upload limits or an optional Host query failure. A failed capability query does
+not disable text/speech tools; plugin reload refreshes the local snapshot.
+
 语音流程：查询音频模型 → `audio_voices` 选择明确音色 → `generate_audio(operation="speech")` → `audio_job` → `export_audio_result`。
 朗读文本最多 1000 字符，语速 0.5–2，输出 MP3；不设置新的默认音色。音频和图片共用最多两个活动生成名额。
 每类记录最多 200 项，合并列表最多 400 项。记录页可见时自动同步本地任务；关闭音频弹窗会停止播放并释放临时地址。
@@ -160,7 +173,7 @@ Agent 可通过原图导出与 Markdown 图片链接完成用户可见展示，�
 | `agent.tool.register` | 注册发现、准备、提交和结果读取工具；提交为高风险操作 |
 | `agent.prompt.inject` | 提供对应 Agent 技能 |
 | `net.fetch` / `net.anyHost` | 显式目录查询及已授权的 GPT／MiniMax 生成请求，沿用已保存地址与来源限制 |
-| `fs.read` / `fs.write` | 仅 `bone-media/exports/**` 内交接文件检查与写入，PNG／MP3 由 Agent 授权工具解码 |
+| `fs.read` / `fs.write` | Export handoff under `bone-media/exports/**`; additional read-only access to staged images under `bone-media/references/**` |
 
 网络通过宿主 API 执行，拒绝重定向。接口会校验 URL、拒绝 URL 内嵌凭据及云元数据
 地址；云服务预设约束来源，自定义服务允许 HTTP/HTTPS。
@@ -210,10 +223,11 @@ node scripts/pack-clean.cjs /absolute/path/to/PI-Desktop
 - [DutyDeck 界面基准](docs/ui-design.zh-CN.md)
 - [运行配置契约](docs/configuration-contract.md)
 - [Agent 优先接口与使用流程](docs/agent-image-contract.md)
+- [GPT Image reference-image contract and acceptance](docs/gpt-image-reference-contract.md)
 - [来源与许可说明](NOTICE.md)
 
-后续阶段：环境音效、音乐、参考图／图生图、远程结果下载和可恢复的视频任务。当前不会把
-未接入的媒体或模型目录候选标记为已实现执行能力。
+Future work: environmental sound effects, music, masks, remote result downloads
+and recoverable video tasks. Unsupported operations remain explicitly unavailable.
 
 - [0.4.1 慢响应请求修复与验收](docs/acceptance-image-request-lifetime.md)
 - [统一生成记录与详情弹窗](docs/generation-records-ui.md)

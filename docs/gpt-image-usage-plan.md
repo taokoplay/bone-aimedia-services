@@ -6,6 +6,10 @@ Version 0.4.0 makes Agent conversation the primary entry. See
 tools, typed image delivery and scoped export. The manual flow below remains
 available for diagnostics and backward compatibility.
 
+The [reference-image extension](gpt-image-reference-contract.md) supersedes the
+reference-image non-goal below. It requires an updated host with binary request
+bodies; the original text-only client path remains compatible.
+
 ## First supported path
 
 OpenAI-compatible `POST <saved baseUrl>/images/generations`, configured

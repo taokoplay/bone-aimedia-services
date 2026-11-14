@@ -1,7 +1,8 @@
-# Agent-driven images — 0.4.1 contract
+# Agent-driven images — compatible contract
 
-The approved plan is `.pi/plan/agent-驱动生图-安装发现-模型选择-调用与图片交付-20261105-1215.md`
-in the host workspace. This implementation changes the plugin only.
+The original text-image workflow was implemented as a plugin-only change.
+Reference-image generation additionally requires the Host binary-request
+capability documented in gpt-image-reference-contract.md.
 
 ## Entry points
 
@@ -11,7 +12,7 @@ and panel routes keep their names, arguments and response shapes.
 | Tool | Input | Behavior |
 |---|---|---|
 | media_catalog | action=list; optional kind | Local models, stable modelRef, readiness reasons, saved defaults and constraints |
-| generate_image | prompt, requestKey; optional modelRef, size, quality, waitMs | Resolve, prepare, submit once and retain the originating call until HTTP/result persistence settles (90-second HTTP deadline) |
+| generate_image | prompt, requestKey; optional modelRef, size, quality, referenceImages, waitMs | Resolve, prepare, submit once and retain the originating call until HTTP/result persistence settles (90-second HTTP deadline) |
 | image_job | action=get/wait/list/result; jobId except list; waitMs only for wait | Local read, at most 15 seconds waiting, or typed PNG result |
 | export_image_result | jobId | Permission-scoped export handoff; never generates |
 
@@ -53,10 +54,14 @@ with a new key. The turn hash records provenance, but does not break retry ident
 across turns. User authorization remains scoped to the actual requested output;
 installation grants do not authorize unlimited generations or automatic retries.
 
-New jobs use private record version 2 with a validated agentRequest version 1:
+New text-only jobs use private record version 2 with a validated agentRequest version 1:
 sessionHash, turnHash, requestKeyHash, inputHash, modelRef and explicitModel. Old
 version-1 records remain readable. Public 0.3 responses omit this source metadata.
 This is the same image-job store, not a parallel credential or task repository.
+Reference-image jobs use private version 3 with the same optional Agent source
+metadata. Text-only requests retain their exact version-1/2 representation and
+hashes. Older plugin builds cannot read version-3 jobs; downgrading after reference
+generation is unsupported. See the reference-image contract for that boundary.
 An existing request is checked before current model resolution, so config changes
 cannot redirect a retry. Changed intent under the same key returns a conflict.
 
@@ -69,6 +74,17 @@ cancellation or a refund. PLUGIN_TOOL_ABORTED is reported as TOOL_ABORTED with
 unknown outcome/charging. Network errors, HTTP timeout and invocation interruption
 remain distinct; none authorizes automatic resubmission. Runtime disposal drains
 requests when possible. Existing unknown jobs are not rewritten or retried.
+
+## Reference-image input
+
+Optional ordered `referenceImages` in generate_image/prepare_image contains
+workspace-relative paths and SHA-256 values for staged PNG/JPEG/WebP files under
+`bone-media/references/`. It requires Host binary HTTP capability plus scoped
+image reads. Missing support rejects references before submission, preserving
+the text-only path. References and workspace identity are revalidated before
+binary multipart `/images/edits`; hashes enter request identity and records.
+The plugin accepts up to 16 files, 4 MiB each and 12 MiB combined, without masks.
+See [reference-image input and acceptance](gpt-image-reference-contract.md).
 
 ## Images and file delivery
 
@@ -115,9 +131,10 @@ Agent callers must inspect structuredContent.ok/error, not only the event status
 ## Installation and verification
 
 Register tools and the skill at onStartup; opening a panel is not required.
-The manifest explicitly adds fs.read/fs.write with the narrow export scope; host
-install/update approval remains necessary. Basic generation does not use those
-filesystem APIs. Tool descriptors and plan-safe actions are synchronized mechanically.
+The manifest explicitly adds fs.read/fs.write with the narrow export scope and
+read-only staged-reference scope; host install/update approval remains necessary.
+Basic text generation does not use those filesystem APIs. Tool descriptors and
+plan-safe actions are synchronized mechanically.
 
 Acceptance includes a real Agent session using a localhost model protocol server
 and synthetic image provider on the unchanged installed client: fresh session,

@@ -1,6 +1,7 @@
 "use strict";
 
 const { isSupportedAudioModel } = require("../lib/audio-models.js");
+const { referenceConstraints, NO_REFERENCE_SUPPORT } = require("../lib/image-reference-schema.js");
 const PLUGIN_ID = "bone.aimedia.services";
 const kinds = ["image", "video", "audio"];
 function input(value) {
@@ -23,7 +24,7 @@ function workflowSummary(workflow) {
     connectionId: workflow.connectionId, nodeCount: Object.keys(workflow.definition || {}).length,
     bindingCount: (workflow.bindings || []).length };
 }
-function capabilities(snapshot, version, toolReachable = true) {
+function capabilities(snapshot, version, toolReachable = true, referenceSupport = NO_REFERENCE_SUPPORT) {
   const configured = snapshot.profiles.filter(p => p.enabled);
   const operations = [
     ["image.generate", "image"], ["image.edit", "image"], ["video.text", "video"],
@@ -37,6 +38,9 @@ function capabilities(snapshot, version, toolReachable = true) {
     blockedBy: imageProfiles.length ? [] : ["enabled-gpt-model-and-credential-required"],
     configuredProfiles: imageProfiles.map(profile => profile.id),
     constraints: { maxOutputs: 1, format: "png", sizes: ["1024x1024", "1536x1024", "1024x1536"], qualities: ["low", "medium", "high"], maxImageBytes: 16777216, resultTransport: "base64-only", requiresExplicitSubmit: true, price: "unknown" } });
+  Object.assign(operations[1], { ...operations[0], id: "image.edit", ready: imageProfiles.length > 0 && referenceSupport.supported,
+    blockedBy: [...operations[0].blockedBy, ...referenceSupport.blockedBy],
+    constraints: { ...operations[0].constraints, referenceImages: { ...structuredClone(referenceConstraints), ...structuredClone(referenceSupport) } } });
   const audioProfiles = configured.filter(profile => profile.provider === "minimax" && profile.credentialConfigured && profile.models.some(model => model.kind === "audio" && isSupportedAudioModel(model.id)));
   Object.assign(operations.find(item => item.id === "audio.speech"), { execution: "native", ready: audioProfiles.length > 0,
     blockedBy: audioProfiles.length ? [] : ["enabled-minimax-speech-model-and-credential-required"],
@@ -54,18 +58,18 @@ function capabilities(snapshot, version, toolReachable = true) {
     remoteInspection: { provider: "comfyui", transport: "panel-explicit-read-only", resources: ["model-folders", "models", "workflows", "workflow", "history", "queue"],
       taskOwnership: "server-wide-unknown", generationImplemented: false },
     observation: "Provider discovery verifies only catalog/node access; actual media review belongs to Agent and requires observation evidence.",
-    limitations: ["GPT text-to-image and MiniMax text-to-speech are implemented. Image editing, environmental sound effects, music, video and workflow execution remain unavailable.",
+    limitations: ["GPT text-to-image and MiniMax text-to-speech are implemented. Reference-image edits require host binary HTTP and scoped image reads. Masks, environmental sound effects, music, video and workflow execution remain unavailable.",
       "Prepared jobs are local. Submission can incur provider charges; uncertain outcomes are never automatically retried.",
       "URL-only image replies remain unavailable. Typed image results are bounded; original-file export requires the declared workspace scope and an Agent-authorized decoder.",
       "Dreamina CLI and LibTV MCP sign-in remain external; this plugin does not execute them.",
       "This response establishes this tool's reachability, not installation/enabled status of other plugins."] };
 }
-function createDiscoveryTools({ read, getVersion }) {
+function createDiscoveryTools({ read, getVersion, getReferenceSupport = () => NO_REFERENCE_SUPPORT }) {
   const filters = { type: "object", properties: { kind: { type: "string", enum: kinds, description: "可选媒体类型；省略返回全部" } }, required: [], additionalProperties: false };
   return [
-    { name: "get_capabilities", risk: "low", description: "读取媒体服务的实际执行能力、GPT 文生图约束和配置状态；不联网、不返回密钥、不生成。已配置不等于供应商实测通过。",
+    { name: "get_capabilities", risk: "low", description: "读取媒体服务的实际执行能力、GPT 文生图/参考图约束、宿主缺口和配置状态；不联网、不返回密钥、不生成。已配置不等于供应商实测通过。",
       schema: { type: "object", properties: {}, required: [], additionalProperties: false },
-      execute: async args => { input(args); if (args?.kind !== undefined) throw Object.assign(new Error("No arguments accepted"), { code: "INVALID_ARGUMENT" }); return capabilities(await read(), getVersion()); } },
+      execute: async args => { input(args); if (args?.kind !== undefined) throw Object.assign(new Error("No arguments accepted"), { code: "INVALID_ARGUMENT" }); return capabilities(await read(), getVersion(), true, getReferenceSupport()); } },
     { name: "list_profiles", risk: "low", description: "只读列出媒体服务与模型配置、默认项和加密凭据是否已设置。不返回密钥，不探测网络；配置或目录可达不等于生成可用。",
       schema: filters, execute: async args => { const { kind } = input(args); const snapshot = await read(); return { pluginId: PLUGIN_ID, revision: snapshot.revision,
         defaults: { ...snapshot.defaults }, singletonConflicts: structuredClone(snapshot.singletonConflicts || []), profiles: snapshot.profiles.filter(p => !kind || snapshot.catalog.find(c => c.id === p.provider)?.kinds.includes(kind)).map(profileSummary) }; } },

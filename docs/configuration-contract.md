@@ -1,4 +1,4 @@
-# Configuration and generation contract — 0.5.0
+# Configuration and generation contract — 0.6.0
 
 ## Runtime and storage
 
@@ -15,8 +15,8 @@ automatic default change is performed. Export declares only workspace-scoped
 fs.read/fs.write for bone-media/exports/**; generation is independent of export.
 
 Agent submission holds its originating host invocation until the shared image/audio
-execution settles and persists the result. The panel's submit/poll contract stays
-asynchronous. New HTTP requests have a 90-second deadline under the installed
+execution settles and persists the result. Legacy panel submission routes remain
+asynchronous for compatibility. New HTTP requests have a 90-second deadline under the installed
 host's 110-second tool limit; existing-job waitMs is not a new-request timeout.
 Invocation interruption is stored as TOOL_ABORTED/unknown, not NETWORK_ERROR.
 No stored job migration, automatic retry or network permission change is made.
@@ -53,8 +53,9 @@ read as an empty state without writes; corrupt files are reported, not reset.
 
 ## Generation records presentation
 
-The visible navigation is Configuration, Image, Audio, Generation Records. The latter
-merges image and speech jobs into one local list with kind and channel/model labels.
+The visible navigation is Configuration and Generation Records. Agent conversations
+create tasks; manual image/speech forms are removed. Records merges image and speech
+jobs into one local list with project, kind and channel/model labels.
 It uses local state filters and a modal detail view described in
 generation-records-ui.md. Existing image records and routes remain compatible;
 additive audio/records routes are described in audio-generation-contract.md.
@@ -308,9 +309,12 @@ Five image tools are added: prepare_image (medium, local write), submit_image
 (low, local reads). The panel uses aimedia.image.prepare/submit/get/list/read.
 See gpt-image-usage-plan.md for the exact request, state and export workflow.
 Capability contractVersion remains 1 with additive generation constraints;
-generationImplemented=true covers GPT text-to-image and MiniMax speech. Other
-operations remain configuration-only. Readiness requires a supported configured
-model, enabled service and restored credential, not a network probe.
+generationImplemented=true covers GPT text-to-image, reference-image edits on a
+capable Host, and MiniMax speech. `image.edit` requires Host binary HTTP/scoped
+image reads; absent support returns `host-binary-image-input-required`. Other
+operations remain configuration-only. Profile readiness requires a supported
+configured model, enabled service and restored credential, not a network probe.
+See gpt-image-reference-contract.md for staged paths, limits and version-3 jobs.
 credentialStorageStatus remains backend/support/last-access observation.
 
 An actual Agent get_capabilities invocation establishes toolReachable=true for

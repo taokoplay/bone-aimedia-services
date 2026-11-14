@@ -1,14 +1,16 @@
 ---
 name: ai-media-services
-description: "Use configured Bone AI media models from Agent conversations: GPT 生图, 文生图, MiniMax 语音合成, 文本朗读, generate images or speech. Discover models and voices, submit one authorized task, query unified local records and export PNG/MP3 originals. Environmental sound effects and music are not implemented."
+description: "Use configured Bone AI media models from Agent conversations: GPT 生图, 文生图, 参考图, GPT Image reference-image edits, MiniMax 语音合成, 文本朗读, generate images or speech. Discover models and voices, submit one authorized task, query unified local records and export PNG/MP3 originals. Reference images require host binary upload support. Environmental sound effects and music are not implemented."
 ---
 
 # Agent-driven Bone AI media services
 
 Use this plugin when the user requests it or names one of its configured services.
 Do not silently substitute the host GenerateImages tool or another generator.
-The Configuration page is for setup; daily generation is driven from conversation.
-Version 0.5 adds MiniMax speech tools while retaining the twelve image/discovery tools.
+The panel has only Configuration and Generation Records. Configure services once,
+then generate from conversation; do not direct users to removed image/audio forms.
+Records provides local progress, image preview, speech playback and downloads.
+All sixteen tools remain available, including legacy image/discovery contracts.
 
 ## Discover and select
 
@@ -29,6 +31,33 @@ are implemented. Other image/video/audio models and ComfyUI workflows may appear
 with unavailable operations. Readiness does not prove supplier access or entitlement.
 No tool installation or model registration into the client's global settings is
 required beyond installing/enabling this plugin with the applicable host grants.
+
+## Reference images
+
+For a user-authorized reference-image request, check the chosen image model's
+`constraints.referenceImages.supported` and `image.edit` operation before staging
+or submitting. This feature explicitly requires a Host advertising binary HTTP
+request bodies; installing the plugin alone does not upgrade an older Host.
+If unavailable, report `constraints.referenceImages.blockedBy` and the advertised
+Host body limit, without dropping references or silently generating from text.
+Optional capability-query failure leaves text/speech tools available. The local
+snapshot refreshes on plugin reload; never use a generation retry as a capability
+probe.
+
+Use the Agent's authorized file tools to stage the user-designated original image
+files under workspace `bone-media/references/`, preserving originals and existing
+files, and calculate each file's SHA-256. Supply `referenceImages` to generate_image
+as an ordered array of `{path, sha256}`. Paths must be workspace-relative under
+that folder; hashes must be lowercase 64-character hex. Never transcribe image
+Base64 into a tool call or read files through the plugin's private storage.
+
+Allow at most 16 PNG/JPEG/WebP files, 4 MiB each and 12 MiB combined. Keep staged
+files until submission settles. The plugin verifies bytes and workspace identity
+before uploading binary multipart files to `/images/edits`, using the same model,
+prompt, output parameters and requestKey rules. A changed reference is changed
+intent: never replace files/hashes under an already submitted request key.
+Do not send input_fidelity for GPT Image 2. Masks and reference URLs are unsupported.
+See ../../docs/gpt-image-reference-contract.md for compatibility and limitations.
 
 ## Speech generation
 
@@ -149,8 +178,8 @@ Existing get_capabilities/list_profiles/list_workflows and prepare_image/
 submit_image/get_image_job/list_image_jobs/read_image_result remain available for
 old callers. Prefer the simplified image/audio tools in new Agent workflows.
 
-ComfyUI browsing is read-only; remote tasks may belong to others. Image editing,
-video, environmental sound effects, music and remote reconciliation are not implemented.
+ComfyUI browsing is read-only; remote tasks may belong to others. Masks, video,
+environmental sound effects, music and remote reconciliation are not implemented.
 Film Factory may register/adopt an exported workspace result with its own explicit
 revision and authorization rules; generation never adopts or approves media.
 See ../../docs/agent-image-contract.md and ../../docs/audio-generation-contract.md.

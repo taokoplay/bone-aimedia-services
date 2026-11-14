@@ -1,16 +1,17 @@
 (() => {
   'use strict';
   const A = window.AIMedia;
+  const t = A.i18n.scope('app');
   const { h, button, input, field, picker, section } = A;
   const tabs = [
-    { id: 'models', name: '模型服务', providers: ['openai', 'minimax', 'xiaomi'], kinds: ['image', 'video', 'audio'], description: '管理图片、视频和音频模型服务。' },
-    { id: 'dreamina', name: '即梦', providers: ['dreamina'], kinds: ['image', 'video'], singleton: true, description: '共享本机 CLI 登录身份，仅维护一个入口。' },
-    { id: 'libtv', name: 'LibTV', providers: ['libtv'], kinds: [], singleton: true, description: '通过宿主 MCP + OAuth 维护一个官方服务入口。' },
-    { id: 'connections', name: 'ComfyUI', providers: ['comfyui'], kinds: [], description: '管理 ComfyUI 服务连接和远端资源。' },
-    { id: 'workflows', name: '本地工作流', providers: [], kinds: [], description: '导入和管理 ComfyUI API 工作流。' }
+    { id: 'models', name: t('models'), providers: ['openai', 'minimax', 'xiaomi'], kinds: ['image', 'video', 'audio'], description: t('modelsDescription') },
+    { id: 'dreamina', name: t('dreamina'), providers: ['dreamina'], kinds: ['image', 'video'], singleton: true, description: t('dreaminaDescription') },
+    { id: 'libtv', name: 'LibTV', providers: ['libtv'], kinds: [], singleton: true, description: t('libtvDescription') },
+    { id: 'connections', name: 'ComfyUI', providers: ['comfyui'], kinds: [], description: t('connectionsDescription') },
+    { id: 'workflows', name: t('workflows'), providers: [], kinds: [], description: t('workflowsDescription') }
   ];
-  const screens = [{ id: 'config', name: '配置' }, { id: 'image', name: '生图' }, { id: 'audio', name: '声音' }, { id: 'records', name: '生成记录' }];
-  const providerDisplay = { openai: 'ChatGPT / OpenAI 图片', minimax: 'MiniMax', xiaomi: '小米 MiMo', comfyui: 'ComfyUI', dreamina: '即梦 Dreamina', libtv: 'LibTV', workflow: '本地工作流' };
+  const screens = [{ id: 'config', name: t('configuration') }, { id: 'records', name: t('records') }];
+  const providerDisplay = { openai: t('openai'), minimax: 'MiniMax', xiaomi: t('xiaomi'), comfyui: 'ComfyUI', dreamina: t('dreaminaDisplay'), libtv: 'LibTV', workflow: t('workflows') };
   const categoryForProvider = provider => provider === 'dreamina' ? 'dreamina' : provider === 'libtv' ? 'libtv' : provider === 'comfyui' ? 'connections' : 'models';
   const s = { data: null, screen: 'config', tab: 'models', addDialog: false, dialogReturnFocus: null, resourceProfile: null, draft: null, defaults: null, defaultsDirty: false, dirty: false, busy: false, notice: null, locked: false,
     epoch: 0, editVersion: 0, importTicket: 0, importing: false, alive: true, loadError: null, legacyBackend: false, query: '', modelFilter: 'all', listFilter: 'all', credential: { action: 'preserve' }, probe: null };
@@ -18,10 +19,7 @@
   const invoke = A.createPanelInvoke(() => window.pluginBridge);
   const C = { state: s, get tab() { return tabs.find(tab => tab.id === s.tab); }, render, touch, message, probe, canProbe, openResources, importRemote };
   const remote = A.remoteController({ state: s, invoke, render, importRemote });
-  const generation = A.generationController({ state: s, invoke, render, message });
-  const audio = A.audioController({ state: s, invoke, render });
   const records = A.recordsPageController({ state: s, invoke });
-  const generationPages = { image: generation, audio, records };
   function touch() {
     s.dirty = true; s.editVersion++;
     document.querySelectorAll('[data-browse]').forEach(node => { node.disabled = true; });
@@ -55,15 +53,15 @@
   async function canLeave() {
     if (s.busy) return false;
     if (!s.dirty && !s.defaultsDirty) return true;
-    return A.confirm('放弃未保存的修改？', '当前输入尚未保存。返回或切换页面将丢弃这些修改。');
+    return A.confirm(t('discardTitle'), t('discardDescription'));
   }
   async function navigate(tab = s.tab, screen = s.screen, focusId = screen === 'config' ? 'config-list' : `main-${screen}`) {
     if (!await canLeave()) return;
     resetDraft(); s.tab = tab; s.screen = screen; s.notice = null; s.query = ''; s.listFilter = 'all'; s.defaultsDirty = false;
-    for (const controller of Object.values(generationPages)) controller.screenChanged();
+    records.screenChanged();
     if (s.data) s.defaults = A.clone(s.data.defaults);
     render(); document.getElementById(focusId)?.focus();
-    void generationPages[screen]?.refresh();
+    if (screen === 'records') void records.refresh();
   }
   async function load(explicit = false) {
     if (s.busy) return;
@@ -76,12 +74,12 @@
       if (!s.alive || ticket !== s.epoch) return;
       resetDraft(); s.data = data; s.defaults = A.clone(data.defaults); s.defaultsDirty = false;
       s.legacyBackend = invoke.isReadOnly(); s.locked = s.legacyBackend; s.loadError = null;
-      if (explicit) setNotice('已重新读取配置。', 'success');
+      if (explicit) setNotice(t('reloaded'), 'success');
     } catch (error) {
       if (!s.alive || ticket !== s.epoch) return;
-      s.loadError = error.code === 'NO_BRIDGE' ? '请在 PI-Desktop 插件面板中打开此页面。当前没有连接到配置服务。' : A.errorText(error);
+      s.loadError = error.code === 'NO_BRIDGE' ? t('noBridge') : A.errorText(error);
       if (s.data) s.notice = { text: s.loadError, type: 'error' };
-    } finally { if (s.alive) { s.busy = false; render(); void generationPages[s.screen]?.refresh(); } }
+    } finally { if (s.alive) { s.busy = false; render(); if (s.screen === 'records') void records.refresh(); } }
   }
   async function open(item, providerId = null) {
     if (s.busy || !s.data) return;
@@ -115,7 +113,7 @@
     resetDraft(); s.tab = 'workflows'; s.screen = 'config'; s.isNew = true;
     s.draft = { ...A.newWorkflow(), name: path.split('/').pop().replace(/\.json$/i, '').slice(0, 128), definition: A.clone(definition), connectionId: profileId };
     s.jsonText = JSON.stringify(definition, null, 2); s.dirty = true;
-    s.notice = { text: '已导入本地工作流草稿。请核对并明确保存；不会修改远端工作流。', type: 'success' }; render(); document.getElementById('editor-heading')?.focus();
+    s.notice = { text: t('workflowImported'), type: 'success' }; render(); document.getElementById('editor-heading')?.focus();
   }
   function payload() { return { expectedRevision: s.data.revision, profiles: s.data.profiles.map(A.cleanProfile), defaults: A.clone(s.data.defaults), workflows: A.clone(s.data.workflows) }; }
   async function save(candidate, success) {
@@ -130,7 +128,7 @@
       if (!s.alive || epoch !== s.epoch) return;
       const knownRejection = ['INVALID_ARGUMENT', 'CONFLICT', 'NOT_FOUND', 'DISABLED', 'PERMISSION_DENIED', 'CREDENTIAL_UNAVAILABLE', 'CREDENTIAL_ERROR', 'CREDENTIAL_LEGACY', 'PLUGIN_RELOAD_REQUIRED'].includes(error.code);
       s.locked = error.code === 'CONFLICT' || !knownRejection;
-      s.notice = { text: knownRejection ? A.errorText(error) : '保存结果尚不确定，输入已保留。请重新读取并核对已保存配置，不要直接重试。', type: 'error' };
+      s.notice = { text: knownRejection ? A.errorText(error) : t('saveUncertain'), type: 'error' };
     } finally { if (s.alive && epoch <= s.epoch) { s.busy = false; render(); } }
   }
   function saveDraft() {
@@ -149,7 +147,7 @@
       const index = candidate.profiles.findIndex(item => item.id === record.id);
       if (index < 0) candidate.profiles.push(record); else candidate.profiles[index] = record;
     }
-    void save(candidate, '配置已保存。未发起目录查询。');
+    void save(candidate, t('saved'));
   }
   async function toggleProfile(item, enabled) {
     if (s.busy || s.locked || item.enabled === enabled) return;
@@ -157,21 +155,21 @@
     const index = candidate.profiles.findIndex(profile => profile.id === item.id);
     if (index < 0) return;
     candidate.profiles[index] = { ...candidate.profiles[index], enabled };
-    await save(candidate, enabled ? '配置已启用。' : '配置已停用。');
+    await save(candidate, enabled ? t('enabled') : t('disabled'));
   }
   async function remove(item, kind = null) {
     if (s.busy || s.locked) return;
     const workflow = kind === 'workflow' || Boolean(item.definition);
-    if (s.defaultsDirty) { message('请先保存默认项，或重新读取以放弃默认项修改。', 'error'); return; }
+    if (s.defaultsDirty) { message(t('saveDefaultsFirst'), 'error'); return; }
     if (!workflow) {
       const references = s.data.workflows.filter(flow => flow.connectionId === item.id);
-      if (references.length) { message(`此连接仍被 ${references.length} 个工作流引用。请在「本地工作流」中明确解除绑定或删除工作流后再删除。`, 'error'); return; }
-      if (Object.values(s.data.defaults).includes(item.id)) { message('此配置仍是默认项。请先明确更改并保存对应默认项，再删除配置。', 'error'); return; }
+      if (references.length) { message(t('connectionReferenced', { p1: references.length }), 'error'); return; }
+      if (Object.values(s.data.defaults).includes(item.id)) { message(t('defaultReferenced'), 'error'); return; }
     }
     const epoch = s.epoch;
-    if (!await A.confirm('删除配置？', `将删除「${item.name}」。此操作不会删除其他配置。`, '确认删除') || epoch !== s.epoch) return;
+    if (!await A.confirm(t('deleteTitle'), t('deleteDescription', { p1: item.name }), t('confirmDelete')) || epoch !== s.epoch) return;
     const candidate = payload(); const key = workflow ? 'workflows' : 'profiles'; candidate[key] = candidate[key].filter(row => row.id !== item.id);
-    await save(candidate, '配置已删除。');
+    await save(candidate, t('deleted'));
   }
   function canProbe() {
     if (s.busy || s.locked || !s.draft || s.importing) return false;
@@ -183,7 +181,7 @@
   async function probe(catalogTarget) {
     if (!canProbe()) return;
     const operationEpoch = s.epoch;
-    if (s.draft.provider === 'minimax' && !(s.credential.action === 'replace' && s.credential.value?.trim()) && !(s.credential.action === 'preserve' && s.draft.credentialConfigured)) { message('请先填写 API Key。', 'error'); return; }
+    if (s.draft.provider === 'minimax' && !(s.credential.action === 'replace' && s.credential.value?.trim()) && !(s.credential.action === 'preserve' && s.draft.credentialConfigured)) { message(t('enterKey'), 'error'); return; }
     if (s.dirty || s.isNew) {
       const error = A.profileError(s.draft, s.credential);
       if (error) { message(error, 'error'); return; }
@@ -229,7 +227,7 @@
           const complete = result.catalogs?.[catalog]?.status === 'connected';
           setNotice(A.minimaxCatalogText(result, catalog), complete ? 'success' : 'error');
         }
-        else if (result.status === 'connected') setNotice('成功从供应商获取模型目录！', 'success');
+        else if (result.status === 'connected') setNotice(t('catalogLoaded'), 'success');
       }
     } catch (error) {
       if (s.alive && epoch === s.epoch) {
@@ -243,7 +241,7 @@
   function allDefaultsView() {
     const card = h('div', { class: 'card' }, ['image', 'video', 'audio'].map(kind => {
       const matchingProfiles = s.data.profiles.filter(profile => profile.enabled && s.data.catalog.find(p => p.id === profile.provider)?.kinds.includes(kind));
-      const options = [{ value: null, label: '未设置' }];
+      const options = [{ value: null, label: t('unset') }];
       for (const p of matchingProfiles) {
         const kindModels = (p.models || []).filter(m => m.kind === kind);
         if (kindModels.length) {
@@ -265,7 +263,7 @@
       const curId = s.defaults[kind];
       const curProf = s.data.profiles.find(p => p.id === curId);
       const curOpt = options.find(opt => opt.value === curId && (!opt.modelId || opt.modelId === curProf?.modelId)) || options.find(opt => opt.value === curId);
-      const customPicker = picker(`默认${A.kinds[kind]}配置`, curId, options, (value, opt) => {
+      const customPicker = picker(t('defaultKind', { p1: A.kinds[kind] }), curId, options, (value, opt) => {
         s.defaults[kind] = value;
         if (value && opt?.modelId && curProf) {
           curProf.modelId = opt.modelId;
@@ -277,45 +275,45 @@
       if (curOpt && customPicker.querySelector('summary')) {
         customPicker.querySelector('summary').textContent = curOpt.label;
       }
-      return field(`默认${A.kinds[kind]}配置`, customPicker);
-    }), A.note('默认项单独保存；新增服务不会自动成为默认。'));
-    return section('默认配置', card, button(s.busy ? '处理中…' : '保存默认项', () => { if (!s.defaultsDirty || s.draft) return; const candidate = payload(); candidate.defaults = A.clone(s.defaults); void save(candidate, '默认项已保存。'); }, { disabled: s.busy || s.locked || !s.defaultsDirty }));
+      return field(t('defaultKind', { p1: A.kinds[kind] }), customPicker);
+    }), A.note(t('defaultHelp')));
+    return section(t('defaults'), card, button(s.busy ? t('busy') : t('saveDefaults'), () => { if (!s.defaultsDirty || s.draft) return; const candidate = payload(); candidate.defaults = A.clone(s.defaults); void save(candidate, t('defaultsSaved')); }, { disabled: s.busy || s.locked || !s.defaultsDirty }));
   }
   const providerIcon = {
-    dreamina: { text: '梦', src: 'assets/models/jimeng.png' }, openai: { text: 'AI', src: 'assets/models/openai.png' },
-    minimax: { text: 'M', src: 'assets/models/minimax.png' }, xiaomi: { text: '米', src: 'assets/models/xiaomi.png' },
+    dreamina: { text: t('dreaminaIcon'), src: 'assets/models/jimeng.png' }, openai: { text: 'AI', src: 'assets/models/openai.png' },
+    minimax: { text: 'M', src: 'assets/models/minimax.png' }, xiaomi: { text: t('xiaomiIcon'), src: 'assets/models/xiaomi.png' },
     comfyui: { text: 'C', src: 'assets/models/comfyui.png' }, libtv: { text: 'L', src: 'assets/models/default.png' },
   };
   const providerIconView = provider => { const icon = providerIcon[provider] || { text: '?' }; return h('span', { class: `service-icon provider-${provider}`, 'aria-hidden': 'true' }, icon.src ? h('img', { src: icon.src, alt: '' }) : icon.text); };
   function providerLabel(p) {
-    const map = { openai: 'OpenAI 图片兼容', minimax: 'MiniMax 图像', dreamina: '即梦', xiaomi: '小米语音', comfyui: 'ComfyUI', libtv: 'LibTV' };
+    const map = { openai: t('openaiCompatible'), minimax: t('minimaxImages'), dreamina: t('dreamina'), xiaomi: t('xiaomiSpeech'), comfyui: 'ComfyUI', libtv: 'LibTV' };
     return map[p] || providerDisplay[p] || p;
   }
   function modelCountSummary(item) {
     const models = item.models || [];
-    if (!models.length) return '尚未配置模型';
+    if (!models.length) return t('noModels');
     const first = models[0].name || models[0].id;
     const imgs = models.filter(m => m.kind === 'image').length;
     const vids = models.filter(m => m.kind === 'video').length;
     const auds = models.filter(m => m.kind === 'audio').length;
     let typeDesc = '';
-    if (imgs && vids) typeDesc = `${imgs} 图片 + ${vids} 视频`;
-    else if (imgs && !vids) typeDesc = '图片模型';
-    else if (vids && !imgs) typeDesc = '视频模型';
-    else if (auds) typeDesc = '音频模型';
-    else typeDesc = `${models.length} 个模型`;
-    return `${providerLabel(item.provider)} · ${first} 等 ${models.length} 个模型 · ${typeDesc}`;
+    if (imgs && vids) typeDesc = t('imageVideoCount', { p1: imgs, p2: vids });
+    else if (imgs && !vids) typeDesc = t('imageModels');
+    else if (vids && !imgs) typeDesc = t('videoModels');
+    else if (auds) typeDesc = t('audioModels');
+    else typeDesc = t('modelCount', { p1: models.length });
+    return t('modelSummary', { p1: providerLabel(item.provider), p2: first, p3: models.length, p4: typeDesc });
   }
   function endpointSummary(item) {
-    if (item.provider === 'dreamina') return 'CLI 登录态 · CLI 登录态';
-    if (item.provider === 'libtv') return '宿主 MCP / OAuth · 固定单实例';
+    if (item.provider === 'dreamina') return t('cliLogin');
+    if (item.provider === 'libtv') return t('hostMcp');
     const url = item.baseUrl || '';
-    const cred = item.credentialConfigured ? '凭据已配置' : '缺少凭据';
+    const cred = item.credentialConfigured ? t('credentialsConfigured') : t('credentialsMissing');
     return `${url ? url + ' · ' : ''}${cred}`;
   }
   function serviceToggle(item) {
-    return h('label', { class: 'service-switch', title: item.enabled ? '停用配置' : '启用配置' },
-      h('input', { type: 'checkbox', role: 'switch', 'aria-label': `${item.enabled ? '停用' : '启用'} ${item.name}`, checked: item.enabled, disabled: s.busy || s.locked || item.id === 'dreamina-unconfigured', onchange: e => { e.stopPropagation(); void toggleProfile(item, e.target.checked); } }),
+    return h('label', { class: 'service-switch', title: item.enabled ? t('disableConfiguration') : t('enableConfiguration') },
+      h('input', { type: 'checkbox', role: 'switch', 'aria-label': `${item.enabled ? t('disable') : t('enable')} ${item.name}`, checked: item.enabled, disabled: s.busy || s.locked || item.id === 'dreamina-unconfigured', onchange: e => { e.stopPropagation(); void toggleProfile(item, e.target.checked); } }),
       h('span', { class: 'switch-track', 'aria-hidden': 'true' }));
   }
   function copyProfile(item) {
@@ -333,14 +331,14 @@
   function profileRow(item) {
     const isDefault = Object.entries(s.data.defaults).filter(([, id]) => id === item.id).map(([kind]) => A.kinds[kind]).join('、');
     const summaryLine1 = modelCountSummary(item);
-    const summaryLine2 = `${endpointSummary(item)}${isDefault ? ` · 默认${isDefault}` : ''}`;
-    const copyBtn = button('', e => { e.stopPropagation(); copyProfile(item); }, { class: 'icon-action-btn', 'aria-label': `复制 ${item.name}`, title: '复制', disabled: s.busy || s.locked });
+    const summaryLine2 = `${endpointSummary(item)}${isDefault ? t('defaultSuffix', { p1: isDefault }) : ''}`;
+    const copyBtn = button('', e => { e.stopPropagation(); copyProfile(item); }, { class: 'icon-action-btn', 'aria-label': t('copyItem', { p1: item.name }), title: t('copy'), disabled: s.busy || s.locked });
     copyBtn.append(A.svgIcon('copy', 16));
-    const editBtn = button('', e => { e.stopPropagation(); void open(item); }, { class: 'icon-action-btn', 'aria-label': `编辑 ${item.name}`, title: '编辑', disabled: s.busy || s.locked });
+    const editBtn = button('', e => { e.stopPropagation(); void open(item); }, { class: 'icon-action-btn', 'aria-label': t('editItem', { p1: item.name }), title: t('edit'), disabled: s.busy || s.locked });
     editBtn.append(A.svgIcon('pencil', 16));
-    const delBtn = button('', e => { e.stopPropagation(); void remove(item); }, { class: 'icon-action-btn action-delete', 'aria-label': `删除 ${item.name}`, title: '删除', disabled: s.busy || s.locked });
+    const delBtn = button('', e => { e.stopPropagation(); void remove(item); }, { class: 'icon-action-btn action-delete', 'aria-label': t('deleteItem', { p1: item.name }), title: t('delete'), disabled: s.busy || s.locked });
     delBtn.append(A.svgIcon('trash', 16));
-    const browseBtn = item.provider === 'comfyui' && button('浏览资源', e => { e.stopPropagation(); void openResources(item); }, { class: 'quiet service-action', 'aria-label': `浏览资源 ${item.name}`, title: '浏览资源', disabled: s.busy || s.locked || !item.enabled });
+    const browseBtn = item.provider === 'comfyui' && button(t('browse'), e => { e.stopPropagation(); void openResources(item); }, { class: 'quiet service-action', 'aria-label': t('browseItem', { p1: item.name }), title: t('browse'), disabled: s.busy || s.locked || !item.enabled });
     const actions = h('div', { class: 'service-actions visible-actions' },
       browseBtn,
       serviceToggle(item),
@@ -358,18 +356,18 @@
   function dreaminaRow() {
     const items = s.data.profiles.filter(item => item.provider === 'dreamina');
     if (items.length) return items.map(profileRow);
-    const item = { id: 'dreamina-unconfigured', name: '即梦', provider: 'dreamina', enabled: false, models: [] };
-    const summaryLine1 = '即梦 · 网页授权 · 尚未配置';
-    const summaryLine2 = 'CLI 登录态 · CLI 登录态';
-    const editBtn = button('', e => { e.stopPropagation(); void open(null, 'dreamina'); }, { class: 'icon-action-btn', 'aria-label': '编辑 即梦', title: '编辑', disabled: s.busy || s.locked });
+    const item = { id: 'dreamina-unconfigured', name: t('dreamina'), provider: 'dreamina', enabled: false, models: [] };
+    const summaryLine1 = t('dreaminaUnconfigured');
+    const summaryLine2 = t('cliLogin');
+    const editBtn = button('', e => { e.stopPropagation(); void open(null, 'dreamina'); }, { class: 'icon-action-btn', 'aria-label': t('editDreamina'), title: t('edit'), disabled: s.busy || s.locked });
     editBtn.append(A.svgIcon('pencil', 16));
     const actions = h('div', { class: 'service-actions visible-actions' },
       serviceToggle(item),
       editBtn);
-    return h('div', { class: 'service-row duty-service-row', 'data-service-row': '', 'data-service-name': item.name, 'data-row-id': item.id, role: 'group', tabindex: '0', 'aria-label': '即梦，网页授权，固定单实例，尚未配置', onclick: e => openServiceRow(item, e), onkeydown: e => { if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('button, input, label')) { e.preventDefault(); void open(null, 'dreamina'); } } },
+    return h('div', { class: 'service-row duty-service-row', 'data-service-row': '', 'data-service-name': item.name, 'data-row-id': item.id, role: 'group', tabindex: '0', 'aria-label': t('dreaminaAccessible'), onclick: e => openServiceRow(item, e), onkeydown: e => { if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('button, input, label')) { e.preventDefault(); void open(null, 'dreamina'); } } },
       providerIconView(item.provider),
       h('div', { class: 'service-copy' },
-        h('div', { class: 'service-title' }, '即梦'),
+        h('div', { class: 'service-title' }, t('dreamina')),
         h('p', { class: 'service-desc-line1' }, summaryLine1),
         h('p', { class: 'service-desc-line2' }, summaryLine2)),
       actions);
@@ -385,12 +383,12 @@
   function workflowRow(item) {
     const connection = s.data.profiles.find(profile => profile.id === item.connectionId);
     const nodeCount = Object.keys(item.definition || {}).length;
-    const desc = `${A.kinds[item.kind] || item.kind} · ${nodeCount} 个节点 · ${connection?.name || '未绑定连接'}`;
-    const copyBtn = button('', e => { e.stopPropagation(); copyWorkflow(item); }, { class: 'icon-action-btn', 'aria-label': `复制 ${item.name}`, title: '复制', disabled: s.busy || s.locked });
+    const desc = t('workflowSummary', { p1: A.kinds[item.kind] || item.kind, p2: nodeCount, p3: connection?.name || t('unboundConnection') });
+    const copyBtn = button('', e => { e.stopPropagation(); copyWorkflow(item); }, { class: 'icon-action-btn', 'aria-label': t('copyItem', { p1: item.name }), title: t('copy'), disabled: s.busy || s.locked });
     copyBtn.append(A.svgIcon('copy', 16));
-    const editBtn = button('', e => { e.stopPropagation(); void open(item); }, { class: 'icon-action-btn', 'aria-label': `编辑 ${item.name}`, title: '编辑', disabled: s.busy || s.locked });
+    const editBtn = button('', e => { e.stopPropagation(); void open(item); }, { class: 'icon-action-btn', 'aria-label': t('editItem', { p1: item.name }), title: t('edit'), disabled: s.busy || s.locked });
     editBtn.append(A.svgIcon('pencil', 16));
-    const delBtn = button('', e => { e.stopPropagation(); void remove(item, 'workflow'); }, { class: 'icon-action-btn action-delete', 'aria-label': `删除 ${item.name}`, title: '删除', disabled: s.busy || s.locked });
+    const delBtn = button('', e => { e.stopPropagation(); void remove(item, 'workflow'); }, { class: 'icon-action-btn action-delete', 'aria-label': t('deleteItem', { p1: item.name }), title: t('delete'), disabled: s.busy || s.locked });
     delBtn.append(A.svgIcon('trash', 16));
     const iconSlot = h('span', { class: 'service-icon workflow-icon-badge', 'aria-hidden': 'true' }, A.svgIcon('workflow', 20));
     return h('div', { class: 'service-row duty-service-row workflow-row', 'data-workflow-row': '', 'data-row-id': item.id, role: 'group', tabindex: '0', 'aria-label': `${item.name}，${desc}`, onclick: e => { if (!e.target.closest('button, input, label')) void open(item); }, onkeydown: e => { if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('button, input, label')) { e.preventDefault(); void open(item); } } },
@@ -398,7 +396,7 @@
       h('div', { class: 'service-copy' },
         h('div', { class: 'service-title' }, item.name),
         h('p', { class: 'service-desc-line1' }, desc),
-        h('p', { class: 'service-desc-line2' }, item.enabled ? '已启用 · 本地 API 格式' : '已停用 · 本地 API 格式')),
+        h('p', { class: 'service-desc-line2' }, item.enabled ? t('workflowEnabled') : t('workflowDisabled'))),
       h('div', { class: 'service-actions visible-actions' }, copyBtn, editBtn, delBtn));
   }
   function addServiceDialog() {
@@ -415,27 +413,27 @@
       const next = e.shiftKey ? (index <= 0 ? focusable.length - 1 : index - 1) : (index + 1) % focusable.length;
       if (index < 0 || e.shiftKey && index === 0 || !e.shiftKey && index === focusable.length - 1) { e.preventDefault(); focusable[next].focus(); }
     };
-    box.append(h('div', { class: 'dialog-heading' }, h('div', {}, h('h2', { id: 'add-service-title' }, '添加服务'), h('p', { class: 'description' }, '选择类型后进入独立编辑页。')), button('×', closeAddDialog, { class: 'quiet', 'aria-label': '关闭添加服务' })));
+    box.append(h('div', { class: 'dialog-heading' }, h('div', {}, h('h2', { id: 'add-service-title' }, t('addService')), h('p', { class: 'description' }, t('selectService'))), button('×', closeAddDialog, { class: 'quiet', 'aria-label': t('closeAddService') })));
     const list = h('div', { class: 'add-service-grid' });
     for (const id of providers) {
       const singleton = id === 'libtv';
       const exists = id === 'workflow' ? false : s.data.profiles.some(profile => profile.provider === id);
       const disabled = singleton && exists;
-      const description = id === 'workflow' ? '保存 ComfyUI API 工作流并配置输入绑定。' : s.data.catalog.find(provider => provider.id === id)?.description || '';
-      list.append(h('button', { type: 'button', class: 'add-service-option', 'aria-label': providerDisplay[id], disabled, onclick: () => { closeAddDialog(); void open(null, id); } }, h('strong', {}, providerDisplay[id]), h('span', {}, disabled ? '已配置，可从服务列表编辑；不会自动创建重复入口。' : description)));
+      const description = id === 'workflow' ? t('workflowServiceDescription') : A.providerDescription(s.data.catalog.find(provider => provider.id === id));
+      list.append(h('button', { type: 'button', class: 'add-service-option', 'aria-label': providerDisplay[id], disabled, onclick: () => { closeAddDialog(); void open(null, id); } }, h('strong', {}, providerDisplay[id]), h('span', {}, disabled ? t('singletonConfigured') : description)));
     }
     box.append(list); modal.append(box); setTimeout(() => box.focus(), 0); return modal;
   }
   function unifiedListView() {
     const query = s.query.trim().toLowerCase();
     const categoryTabs = [
-      { id: 'models', label: '生成模型' },
-      { id: 'audio', label: '音频生成' },
-      { id: 'connections', label: '服务链接' },
-      { id: 'workflows', label: '本地工作流' }
+      { id: 'models', label: t('generationModels') },
+      { id: 'audio', label: t('audioGeneration') },
+      { id: 'connections', label: t('serviceConnections') },
+      { id: 'workflows', label: t('workflows') }
     ];
     const activeCategory = s.listCategory || 'models';
-    const navCapsules = h('div', { class: 'duty-nav-capsules', role: 'group', 'aria-label': '配置类别切换' },
+    const navCapsules = h('div', { class: 'duty-nav-capsules', role: 'group', 'aria-label': t('configurationCategories') },
       categoryTabs.map(cat => button(cat.label, () => { s.listCategory = cat.id; render(); }, {
         class: `duty-capsule ${activeCategory === cat.id ? 'active' : ''}`,
         'aria-pressed': String(activeCategory === cat.id)
@@ -443,10 +441,10 @@
     );
     const isWfTab = activeCategory === 'workflows';
     const searchIcon = h('span', { class: 'search-icon-slot' }, A.svgIcon('search', 15));
-    const searchPlaceholder = isWfTab ? '搜索名称、输入或输出类型' : '搜索名称、供应商或模型';
-    const searchInput = input('搜索名称、供应商或模型', s.query, value => { s.query = value; render(); document.querySelector('[aria-label="搜索名称、供应商或模型"]')?.focus(); }, { class: 'search-duty-input', type: 'search', placeholder: searchPlaceholder, disabled: s.busy });
+    const searchPlaceholder = isWfTab ? t('workflowSearch') : t('serviceSearch');
+    const searchInput = input(t('serviceSearch'), s.query, value => { s.query = value; render(); document.querySelector('[data-service-search]')?.focus(); }, { class: 'search-duty-input', 'data-service-search': '', type: 'search', placeholder: searchPlaceholder, disabled: s.busy });
     const searchBox = h('div', { class: 'search-duty-box' }, searchIcon, searchInput);
-    const addBtn = button(isWfTab ? '添加工作流' : '添加服务', isWfTab ? () => open(null, 'workflow') : openAddDialog, { class: 'primary duty-add-btn', 'data-add-service': '', disabled: s.busy || s.locked });
+    const addBtn = button(isWfTab ? t('addWorkflow') : t('addService'), isWfTab ? () => open(null, 'workflow') : openAddDialog, { class: 'primary duty-add-btn', 'data-add-service': '', disabled: s.busy || s.locked });
     const headerBar = h('div', { class: 'duty-list-header-bar' },
       navCapsules,
       h('div', { class: 'duty-list-header-right' }, searchBox, addBtn)
@@ -454,7 +452,7 @@
     const matches = item => [item.name, providerDisplay[item.provider], item.provider, ...(item.models || []).map(model => `${model.name} ${model.id}`)].join(' ').toLowerCase().includes(query);
     const profiles = s.data.profiles.filter(item => matches(item));
     const workflows = s.data.workflows.filter(item => `${item.name} ${item.kind} ${item.connectionId || ''}`.toLowerCase().includes(query));
-    const dreaminaMatches = matches({ name: '即梦', provider: 'dreamina', models: [] });
+    const dreaminaMatches = matches({ name: t('dreamina'), provider: 'dreamina', models: [] });
     let visibleProfiles = profiles.filter(item => item.provider !== 'dreamina');
     if (activeCategory === 'audio') {
       visibleProfiles = visibleProfiles.filter(p => p.provider === 'xiaomi' || p.models?.some(m => m.kind === 'audio'));
@@ -463,18 +461,18 @@
     }
     const showDreamina = (activeCategory === 'models' || activeCategory === 'all') && dreaminaMatches;
     const profileChildren = [showDreamina && dreaminaRow(), ...visibleProfiles.map(profileRow)].filter(Boolean);
-    const profileRows = h('div', { class: 'service-list duty-card-list', 'aria-label': '服务配置列表' }, profileChildren);
-    if (!profileChildren.length) profileRows.append(A.empty('没有匹配的服务', s.data.profiles.length ? '试试其他名称、供应商或模型 ID。' : '点击右上角“添加服务”选择服务类型。'));
-    const workflowRows = h('div', { class: 'card workflow-list', 'aria-label': '本地工作流列表' }, workflows.map(workflowRow));
-    if (!workflows.length && activeCategory === 'workflows') workflowRows.append(A.empty('尚未保存本地工作流', '从 ComfyUI 远端资源导入后，检查并明确保存。'));
+    const profileRows = h('div', { class: 'service-list duty-card-list', 'aria-label': t('serviceList') }, profileChildren);
+    if (!profileChildren.length) profileRows.append(A.empty(t('noMatchingService'), s.data.profiles.length ? t('searchHelp') : t('addServiceHelp')));
+    const workflowRows = h('div', { class: 'card workflow-list', 'aria-label': t('workflowList') }, workflows.map(workflowRow));
+    if (!workflows.length && activeCategory === 'workflows') workflowRows.append(A.empty(t('noWorkflows'), t('importWorkflowHelp')));
     const conflict = s.data.singletonConflicts?.length;
     const hasWorkflows = workflows.length > 0;
     return h('div', { class: 'duty-list-container' },
-      h('div', { class: 'heading visually-hidden' }, h('h2', {}, '配置')),
+      h('div', { class: 'heading visually-hidden' }, h('h2', {}, t('configuration'))),
       headerBar,
-      Boolean(conflict) ? h('div', { class: 'notice error', role: 'alert' }, '检测到历史重复配置，所有条目均保留。请核对并编辑需要保留的一份，再明确删除其余条目；不会自动合并。') : null,
+      Boolean(conflict) ? h('div', { class: 'notice error', role: 'alert' }, t('singletonConflict')) : null,
       activeCategory === 'workflows' ? null : h('div', { class: 'duty-service-section' }, profileRows),
-      (hasWorkflows || activeCategory === 'workflows' || activeCategory === 'all') ? section('本地工作流', workflowRows) : null,
+      (hasWorkflows || activeCategory === 'workflows' || activeCategory === 'all') ? section(t('workflows'), workflowRows) : null,
       (activeCategory === 'models' || activeCategory === 'all') ? h('div', { class: 'duty-defaults-section' }, allDefaultsView()) : null,
       addServiceDialog()
     );
@@ -490,32 +488,30 @@
   }
   function render() {
     if (!s.alive) return;
-    const header = h('header', {}, h('div', { class: 'brand' }, h('h1', {}, 'AI 媒体服务', h('span', { class: 'title-version' }, '0.5.1'))),
-      h('p', { class: 'capability' }, 'GPT 文生图 · MiniMax 语音合成'));
-    const nav = navView(screens, s.screen, 'main', '媒体服务主导航', 'main-panel', id => navigate(s.tab, id, `main-${id}`));
+    const header = h('header', {}, h('div', { class: 'brand' }, h('h1', {}, t('title'), h('span', { class: 'title-version' }, '0.5.4'))),
+      h('p', { class: 'capability' }, t('subtitle')));
+    const nav = navView(screens, s.screen, 'main', t('navigation'), 'main-panel', id => navigate(s.tab, id, `main-${id}`));
     const main = h('div', { id: 'main-panel', role: 'tabpanel', 'aria-labelledby': `main-${s.screen}` });
     const panel = h('div', { id: 'settings-panel', ...(s.screen === 'config' ? { role: 'region', 'aria-labelledby': 'main-config' } : {}), 'aria-busy': String(s.busy), class: 'view' });
-    if (s.notice) panel.append(h('div', { class: `notice ${s.notice.type}`, 'data-app-notice': '', role: s.notice.type === 'error' ? 'alert' : 'status' }, h('p', {}, s.notice.text), (s.locked || !s.data) && button('重新读取', () => load(true), { disabled: s.busy })));
-    if (s.data && s.legacyBackend) panel.append(h('div', { class: 'note', 'data-config-readonly': '', role: 'status' }, h('p', {}, '已读取原有配置，当前为只读模式。插件后台尚未更新；重载插件后点击「重新检查」恢复编辑。'), button('重新检查', () => load(true), { class: 'quiet', disabled: s.busy })));
+    if (s.notice) panel.append(h('div', { class: `notice ${s.notice.type}`, 'data-app-notice': '', role: s.notice.type === 'error' ? 'alert' : 'status' }, h('p', {}, s.notice.text), (s.locked || !s.data) && button(t('reload'), () => load(true), { disabled: s.busy })));
+    if (s.data && s.legacyBackend) panel.append(h('div', { class: 'note', 'data-config-readonly': '', role: 'status' }, h('p', {}, t('legacyBackend')), button(t('checkAgain'), () => load(true), { class: 'quiet', disabled: s.busy })));
     if (!s.data) {
-      const empty = A.empty(s.busy ? '正在读取配置…' : '无法读取配置', s.busy ? '正在读取本地配置，不会自动连接供应商。' : s.loadError || '配置服务尚未响应，请重新读取。');
+      const empty = A.empty(s.busy ? t('loading') : t('loadFailed'), s.busy ? t('loadingHelp') : s.loadError || t('serviceNotResponding'));
       if (s.loadError && !s.busy) { empty.setAttribute('data-config-load-error', ''); empty.setAttribute('role', 'alert'); }
-      empty.append(button('重新读取', () => load(true), { disabled: s.busy }));
+      empty.append(button(t('reload'), () => load(true), { disabled: s.busy }));
       panel.append(h('div', { class: 'card' }, empty));
     }
-    else if (s.screen === 'image') panel.append(generation.view());
-    else if (s.screen === 'audio') panel.append(audio.view());
     else if (s.screen === 'records') panel.append(records.view());
-    else if (s.resourceProfile) panel.append(h('div', { class: 'heading' }, h('div', { class: 'inline' }, button('←', () => navigate(), { 'aria-label': '返回连接列表', class: 'quiet' }), h('h2', { id: 'resource-heading', tabindex: -1 }, '浏览资源'))), remote.resourceView());
+    else if (s.resourceProfile) panel.append(h('div', { class: 'heading' }, h('div', { class: 'inline' }, button('←', () => navigate(), { 'aria-label': t('backConnections'), class: 'quiet' }), h('h2', { id: 'resource-heading', tabindex: -1 }, t('browse')))), remote.resourceView());
     else if (s.draft) {
       const isComfy = s.draft.provider === 'comfyui';
       const isWf = s.tab === 'workflows';
-      const editTitle = isComfy ? `${s.isNew ? '添加' : '编辑'}服务连接` : isWf ? `${s.isNew ? '添加' : '编辑'}本地工作流` : `${s.isNew ? '添加' : '编辑'}生成模型配置`;
-      panel.append(h('div', { class: 'heading' }, h('div', { class: 'inline' }, button('←', () => navigate(), { 'aria-label': '返回列表', class: 'quiet', disabled: s.busy }), h('h2', { id: 'editor-heading', tabindex: -1 }, editTitle))));
-      const form = h('form', { onsubmit: e => { e.preventDefault(); saveDraft(); } }, h('fieldset', { disabled: s.busy || s.legacyBackend }, s.tab === 'workflows' ? A.workflowView(C) : A.profileView(C)), h('div', { class: 'footer' }, button('取消', () => navigate(), { disabled: s.busy }), button(s.busy ? '处理中…' : '保存', null, { type: 'submit', class: 'primary', disabled: s.busy || s.locked || s.importing })));
+      const editTitle = isComfy ? t('connectionEditor', { p1: s.isNew ? t('add') : t('edit') }) : isWf ? t('workflowEditor', { p1: s.isNew ? t('add') : t('edit') }) : t('modelEditor', { p1: s.isNew ? t('add') : t('edit') });
+      panel.append(h('div', { class: 'heading' }, h('div', { class: 'inline' }, button('←', () => navigate(), { 'aria-label': t('backList'), class: 'quiet', disabled: s.busy }), h('h2', { id: 'editor-heading', tabindex: -1 }, editTitle))));
+      const form = h('form', { onsubmit: e => { e.preventDefault(); saveDraft(); } }, h('fieldset', { disabled: s.busy || s.legacyBackend }, s.tab === 'workflows' ? A.workflowView(C) : A.profileView(C)), h('div', { class: 'footer' }, button(t('cancel'), () => navigate(), { disabled: s.busy }), button(s.busy ? t('busy') : t('save'), null, { type: 'submit', class: 'primary', disabled: s.busy || s.locked || s.importing })));
       panel.append(form);
     } else panel.append(unifiedListView());
-    if (s.data && !s.draft && s.screen !== 'records') panel.append(h('div', { class: 'footer' }, button('重新读取', () => load(true), { class: 'quiet', disabled: s.busy })));
+    if (s.data && !s.draft && s.screen !== 'records') panel.append(h('div', { class: 'footer' }, button(t('reload'), () => load(true), { class: 'quiet', disabled: s.busy })));
     main.append(panel); root.replaceChildren(...(s.draft ? [main] : [header, nav, main]));
   }
   const media = matchMedia('(prefers-color-scheme: light)');
@@ -527,6 +523,6 @@
   const appearanceTicket = appearanceVersion;
   invoke('app.getAppearance').then(appearance => { if (s.alive && appearanceVersion === appearanceTicket) applyAppearance(appearance); }).catch(() => {});
   window.addEventListener('beforeunload', e => { if (s.dirty || s.defaultsDirty || s.busy) { e.preventDefault(); e.returnValue = ''; } });
-  window.addEventListener('pagehide', () => { s.alive = false; for (const controller of Object.values(generationPages)) controller.dispose(); resetDraft(); media.removeEventListener('change', systemAppearance); if (typeof unsubscribe === 'function') unsubscribe(); });
+  window.addEventListener('pagehide', () => { s.alive = false; records.dispose(); resetDraft(); media.removeEventListener('change', systemAppearance); if (typeof unsubscribe === 'function') unsubscribe(); });
   void load();
 })();

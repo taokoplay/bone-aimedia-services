@@ -17,12 +17,14 @@ const { createAgentAudioService } = require("./lib/agent-audio-service.js");
 const { createAgentAudioTools } = require("./tools/agent-audio.js");
 const { createAudioResultExporter } = require("./lib/audio-result-export.js");
 const { createGenerationRecords } = require("./lib/generation-records.js");
+const { createImageReferenceReader } = require("./lib/image-reference-reader.js");
+const { createProjectCapture } = require("./lib/generation-project.js");
 const COMMAND_ID = "bone.aimedia.services.open";
 const VIEW_ID = "settings";
 function error(code, message) { return Object.assign(new Error(message), { code }); }
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
 let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, records = null;
-let version = "0.5.1";
+let version = "0.6.0";
 let registered = [];
 let registrationErrors = [];
 function safeFailure(failure) {
@@ -48,6 +50,9 @@ function safeFailure(failure) {
     RESULT_INVALID: "媒体文件校验未通过，未作为成功结果保存。",
     RESULT_UNAVAILABLE: "当前没有可读取的媒体结果。",
     CREDENTIAL_REQUIRED: "请先保存所选服务的 API Key。",
+    REFERENCE_UNSUPPORTED: "参考图当前不可用；请查看 media_catalog 的 referenceImages.blockedBy，核对宿主二进制上传与图片读取支持。文生图仍可使用。",
+    REFERENCE_INVALID: "参考图格式、大小或内容校验未通过，未提交生成请求。",
+    REFERENCE_CHANGED: "参考图内容与指定哈希不一致，未提交生成请求。",
   };
   if (!Object.hasOwn(messages, failure?.code) && resourceErrorDetails(failure).code === failure?.code) {
     return error(failure.code, "资源读取未完成，请检查具体错误后重试。");
@@ -60,10 +65,10 @@ async function access(method, payload) {
   if (!current) throw error("UNAVAILABLE", "媒体配置服务尚未加载。");
   try { return await current[method](payload); } catch (failure) { throw safeFailure(failure); }
 }
-async function imageAccess(method, payload) {
+async function imageAccess(method, payload, context) {
   const current = images;
   if (!current) throw error("UNAVAILABLE", "生图服务尚未加载。");
-  try { return await current[method](payload); } catch (failure) { throw safeFailure(failure); }
+  try { return method === "prepare" ? await current.prepare(payload, undefined, context) : await current[method](payload); } catch (failure) { throw safeFailure(failure); }
 }
 async function audioAccess(method, payload) {
   const current = audio;
@@ -85,7 +90,7 @@ async function agentAccess(method, payload, ctx) {
   if (!current) throw error("DISPOSED", "Agent image service is not loaded.");
   return current[method](payload, ctx);
 }
-const tools = [...createDiscoveryTools({ read: () => access("read"), getVersion: () => version }), ...createImageTools({ access: imageAccess }), ...createAgentImageTools({ access: agentAccess }), ...createAgentAudioTools({ access: agentAudioAccess })];
+const tools = [...createDiscoveryTools({ read: () => access("read"), getVersion: () => version, getReferenceSupport: () => images?.referenceSupport }), ...createImageTools({ access: (method, input, ctx) => imageAccess(method, input, ctx ?? null) }), ...createAgentImageTools({ access: agentAccess }), ...createAgentAudioTools({ access: agentAudioAccess })];
 async function clearRuntime() {
   const old = settings, oldImages = images, oldAgent = agentImages, oldAudio = audio, oldAgentAudio = agentAudio;
   settings = null; images = null; agentImages = null; audio = null; agentAudio = null; records = null;
@@ -108,9 +113,10 @@ async function onLoad() {
     return pi.net.fetch(input);
   };
   settings = createMediaProviderSettings({ getDataPath: () => dataPath, secrets: createSecrets({ getDataPath: () => dataPath }), request });
-  const budget = createGenerationBudget(2);
-  images = createImageGeneration({ getDataPath: () => dataPath, settings, request, budget });
-  audio = createAudioGeneration({ getDataPath: () => dataPath, settings, request, budget });
+  const budget = createGenerationBudget(2), captureProject = createProjectCapture(pi);
+  const references = await createImageReferenceReader({ host: pi });
+  images = createImageGeneration({ getDataPath: () => dataPath, settings, request, budget, references, captureProject });
+  audio = createAudioGeneration({ getDataPath: () => dataPath, settings, request, budget, captureProject });
   agentImages = createAgentImageService({ settings, images, exporter: createImageResultExporter({ host: pi, readResult: images.resultBytes }) });
   agentAudio = createAgentAudioService({ settings, audio, exporter: createAudioResultExporter({ host: pi, readResult: audio.resultBytes }) });
   records = createGenerationRecords({ images, audio });
@@ -148,7 +154,7 @@ async function dispatchPanel(channel, payload) {
     case "aimedia.resourceSnapshot": return access("resourceSnapshot", payload);
     case "aimedia.syncResources": return access("syncResources", payload);
     case "aimedia.readResourceWorkflow": return access("readResourceWorkflow", payload);
-    case "aimedia.capabilities": return capabilities(await access("read"), version, registered.includes("get_capabilities"));
+    case "aimedia.capabilities": return capabilities(await access("read"), version, registered.includes("get_capabilities"), images?.referenceSupport);
     case "aimedia.status": return { pluginId: PLUGIN_ID, version, panelProtocol: 1, tools: [...registered], errors: [...registrationErrors], generationImplemented: true };
     case "aimedia.dreamina.status": return dreaminaCli.getDreaminaStatus(payload?.cliPath);
     case "aimedia.dreamina.loginStart": return dreaminaCli.startDreaminaLogin(payload?.cliPath);

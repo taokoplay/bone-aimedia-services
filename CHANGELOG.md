@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.6.0
+
+- Add ordered GPT reference-image input to Agent and legacy preparation tools,
+  with scoped PNG/JPEG/WebP reads, content hashes and multipart image edits.
+- Require explicitly advertised Host binary HTTP capability; older Hosts keep
+  text/speech generation and reject references before submission.
+- Preserve text-only job formats and single-submission behavior; use version-3
+  records for reference jobs and document the downgrade boundary.
+- Keep plugin startup and text/speech tools available when optional reference
+  capability discovery fails; report shared, sanitized Host support diagnostics.
+- Remove redundant workspace queries before Host-pinned image reads while
+  retaining post-read checks, content verification and cancellation handling.
+
+## 0.5.4
+
+- Keep only Configuration and Generation Records in the panel. Create images and
+  speech from Agent conversations; remove the redundant manual forms/controllers.
+- Preserve all sixteen Agent tools, compatible backend routes, project badges,
+  compact columns, local progress, image preview, speech playback and downloads.
+- Allow the configuration search field to shrink at 320px while keeping the add
+  action readable, removing a narrow-screen horizontal overflow.
+- Supply English and Simplified Chinese marketplace metadata and panel copy for
+  publication. Preserve Chinese fallback on hosts without a locale API.
+- Exercise Agent-to-record user paths, keyboard navigation and media cleanup in
+  isolated browser tests. Existing credentials, tasks and permissions are unchanged.
+
+## 0.5.3
+
+- Rebalance records-table columns so channel/model no longer consumes most of
+  the available width. Move status and time closer while preserving project
+  badges, header alignment and narrow layouts.
+
+## 0.5.2
+
+- Show a small project-name badge below each image/speech task type. Long names
+  truncate in the list and remain available through the title and accessible label.
+- Capture the project at task preparation using host context. Preserve snapshots
+  across project switches and restart; legacy or unverified associations remain
+  explicitly unknown. Existing task formats, generation and permissions are unchanged.
+
 ## 0.5.1
 
 - Republish the verified image/speech workflow with intact UTF-8 source files.

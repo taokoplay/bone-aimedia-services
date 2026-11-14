@@ -1,0 +1,37 @@
+/* Plugin-owned display copy. Interpolated values remain unchanged. */
+window.AIMedia.i18n.register('preview', {
+  en: {
+    retry: "Retry reading {p1}",
+    loading: "Reading and decoding local {p1}…",
+    preview: "Preview {p1}",
+    noResult: "No local {p1} is available to read.",
+    image: "image",
+    audio: "audio",
+    invalid: "The {p1} failed integrity checks or browser decoding and cannot be previewed or downloaded. It will not be generated again.",
+    unavailable: "The local {p1} is temporarily unavailable. Reload the task to check. It will not be generated again.",
+    imageMetadata: "{p1} × {p2} · Image quality not reviewed",
+    audioMetadata: "{p1} · {p2} Hz · {p3} channels · Content not reviewed",
+    downloadPng: "Download PNG",
+    downloadMp3: "Download MP3",
+    imagePreview: "Generated image preview",
+    audioPreview: "Generated speech preview",
+    seconds: "{p1} seconds",
+  },
+  'zh-CN': {
+    retry: "重试读取{p1}",
+    loading: "正在读取本地 {p1} 并解码…",
+    preview: "预览{p1}",
+    noResult: "暂无可读取的本地{p1}。",
+    image: "图片",
+    audio: "音频",
+    invalid: "{p1}无法通过完整性检查或浏览器解码，无法预览和下载。不会重新生成。",
+    unavailable: "本地{p1}暂不可用，请重新读取任务核对。不会重新生成。",
+    imageMetadata: "{p1} × {p2} · 画面质量未评审",
+    audioMetadata: "{p1} · {p2} Hz · {p3} 声道 · 内容未评审",
+    downloadPng: "下载 PNG",
+    downloadMp3: "下载 MP3",
+    imagePreview: "生成图片预览",
+    audioPreview: "生成语音预览",
+    seconds: "{p1} 秒",
+  }
+});

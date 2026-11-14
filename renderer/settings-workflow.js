@@ -1,10 +1,11 @@
 (() => {
   'use strict';
   const A = window.AIMedia;
+  const t = A.i18n.scope('workflow');
   const { h, button, input, field, picker, section, note } = A;
 
-  const purposes = { prompt: '提示词', negativePrompt: '负面提示词', seed: '种子', width: '宽度', height: '高度', steps: '步数' };
-  const controlLabels = { text: '文本', number: '数字', boolean: '布尔值', image: '图片', audio: '音频', video: '视频', seed: '随机种子', width: '宽度', height: '高度' };
+  const purposes = { prompt: t('prompt'), negativePrompt: t('negativePrompt'), seed: t('seed'), width: t('width'), height: t('height'), steps: t('steps') };
+  const controlLabels = { text: t('text'), number: t('number'), boolean: t('boolean'), image: t('image'), audio: t('audio'), video: t('video'), seed: t('randomSeed'), width: t('width'), height: t('height') };
 
   A.newWorkflow = () => ({
     id: A.id('workflow'),
@@ -19,13 +20,13 @@
   function isRecord(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
 
   function parseComfyPrompt(val) {
-    if (!isRecord(val)) throw new Error('请导入 API 格式的 JSON 对象。');
+    if (!isRecord(val)) throw new Error(t('apiObjectRequired'));
     const entries = Object.entries(val);
-    if (!entries.length || entries.length > 300) throw new Error('工作流需要 1–300 个 API 节点。');
+    if (!entries.length || entries.length > 300) throw new Error(t('nodeCountRequired'));
     const prompt = {};
     for (const [nodeId, rawNode] of entries) {
       if (!isRecord(rawNode) || typeof rawNode.class_type !== 'string' || !rawNode.class_type || !isRecord(rawNode.inputs)) {
-        throw new Error('每个 API 节点都需要 class_type 和 inputs 对象；请勿导入画布格式。');
+        throw new Error(t('nodeStructureRequired'));
       }
       prompt[nodeId] = {
         class_type: rawNode.class_type,
@@ -48,9 +49,9 @@
         } else if (typeof val === 'boolean') {
           fields.push({ nodeId, input: inp, classType: node.class_type, nodeTitle, value: val, valueKind: 'boolean', editable: true });
         } else if (Array.isArray(val) && val.length === 2 && typeof val[0] === 'string' && Object.hasOwn(prompt, val[0]) && typeof val[1] === 'number') {
-          fields.push({ nodeId, input: inp, classType: node.class_type, nodeTitle, value: val, valueKind: 'linked', editable: false, reason: '该输入来自其他节点连线，不能直接覆盖。' });
+          fields.push({ nodeId, input: inp, classType: node.class_type, nodeTitle, value: val, valueKind: 'linked', editable: false, reason: t('linkedInput') });
         } else {
-          fields.push({ nodeId, input: inp, classType: node.class_type, nodeTitle, value: val, valueKind: 'complex', editable: false, reason: '数组、对象或空值不能映射为填写项。' });
+          fields.push({ nodeId, input: inp, classType: node.class_type, nodeTitle, value: val, valueKind: 'complex', editable: false, reason: t('complexInput') });
         }
       }
     }
@@ -96,27 +97,27 @@
     const keys = new Set();
     const targets = new Set();
     for (const b of (definition.bindings || [])) {
-      if (keys.has(b.key)) issues.push({ message: `绑定 key 重复：${b.key}` });
+      if (keys.has(b.key)) issues.push({ message: t('duplicateKey', { p1: b.key }) });
       keys.add(b.key);
       const target = `${b.nodeId}\\0${b.input}`;
-      if (targets.has(target)) issues.push({ message: `节点输入被重复绑定：${b.nodeId}.${b.input}` });
+      if (targets.has(target)) issues.push({ message: t('duplicateTarget', { p1: b.nodeId, p2: b.input }) });
       targets.add(target);
       const node = definition.prompt[b.nodeId];
       if (!node) {
-        issues.push({ message: `节点已不存在：${b.nodeId}` });
+        issues.push({ message: t('missingNode', { p1: b.nodeId }) });
       } else if (!Object.hasOwn(node.inputs || {}, b.input)) {
-        issues.push({ message: `节点输入已不存在：${b.nodeId}.${b.input}` });
+        issues.push({ message: t('missingInput', { p1: b.nodeId, p2: b.input }) });
       }
     }
     return issues;
   }
 
   A.parseWorkflow = (draft, text) => {
-    if (!draft.name.trim()) throw new Error('请填写工作流名称。');
-    if (new TextEncoder().encode(text).length > 200 * 1024) throw new Error('工作流 JSON 不能超过 200 KiB。');
+    if (!draft.name.trim()) throw new Error(t('nameRequired'));
+    if (new TextEncoder().encode(text).length > 200 * 1024) throw new Error(t('jsonTooLarge'));
     let parsed;
-    try { parsed = JSON.parse(text); } catch { throw new Error('JSON 格式无效，请检查括号、引号和逗号。原文已保留。'); }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('请导入 API 格式的 JSON 对象。');
+    try { parsed = JSON.parse(text); } catch { throw new Error(t('invalidJson')); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(t('apiObjectRequired'));
 
     let definition;
     if (parsed.schemaVersion === 1 && isRecord(parsed.prompt)) {
@@ -129,11 +130,11 @@
     const used = new Set(), targets = new Set();
     for (const binding of (draft.bindings || [])) {
       if (!Object.hasOwn(rawNodes, binding.nodeId) || !Object.hasOwn(rawNodes[binding.nodeId]?.inputs || {}, binding.input)) {
-        throw new Error('绑定目标不存在，请核对节点 ID 和输入字段。');
+        throw new Error(t('missingTarget'));
       }
       const target = JSON.stringify([binding.nodeId, binding.input]);
       if ((binding.purpose && used.has(binding.purpose)) || targets.has(target)) {
-        throw new Error('绑定用途和目标不可重复。');
+        throw new Error(t('duplicateBinding'));
       }
       if (binding.purpose) used.add(binding.purpose);
       targets.add(target);
@@ -158,25 +159,25 @@
     }
 
     const basics = h('div', { class: 'duty-card' },
-      field('工作流名称', input('工作流名称', d.name, value => set('name', value), { maxlength: 128, placeholder: '例如：文生图高分辨率工作流', disabled: s.busy })),
-      field('服务链接', picker('工作流服务链接', d.connectionId, [{ value: null, label: '未绑定' }, ...s.data.profiles.filter(p => p.provider === 'comfyui').map(p => ({ value: p.id, label: p.name + (p.enabled ? '' : ' · 已停用') }))], value => set('connectionId', value, true), s.busy), '可先保存为未绑定，再选择已保存的 ComfyUI 连接。'),
-      field('媒体类型', picker('媒体类型', d.kind || 'image', Object.entries(A.kinds).map(([value, label]) => ({ value, label })), value => set('kind', value, true), s.busy)),
-      field('使用状态', A.toggle('启用此工作流', d.enabled, value => set('enabled', value, true), s.busy)));
+      field(t('name'), input(t('name'), d.name, value => set('name', value), { maxlength: 128, placeholder: t('nameExample'), disabled: s.busy })),
+      field(t('connection'), picker(t('workflowConnection'), d.connectionId, [{ value: null, label: t('unbound') }, ...s.data.profiles.filter(p => p.provider === 'comfyui').map(p => ({ value: p.id, label: p.name + (p.enabled ? '' : t('disabledSuffix')) }))], value => set('connectionId', value, true), s.busy), t('connectionHelp')),
+      field(t('mediaType'), picker(t('mediaType'), d.kind || 'image', Object.entries(A.kinds).map(([value, label]) => ({ value, label })), value => set('kind', value, true), s.busy)),
+      field(t('status'), A.toggle(t('enable'), d.enabled, value => set('enabled', value, true), s.busy)));
 
-    const file = h('input', { type: 'file', accept: '.json,application/json', 'aria-label': '导入 API JSON 文件', hidden: true, onchange: async e => {
+    const file = h('input', { type: 'file', accept: '.json,application/json', 'aria-label': t('importFile'), hidden: true, onchange: async e => {
       const selected = e.target.files?.[0]; if (!selected || s.busy) return;
       const epoch = s.epoch, version = s.editVersion, ticket = ++s.importTicket;
       s.importing = true; C.render();
       try {
-        if (selected.size > 200 * 1024) throw new Error('文件不能超过 200 KiB。');
+        if (selected.size > 200 * 1024) throw new Error(t('fileTooLarge'));
         const text = await selected.text();
         if (epoch !== s.epoch || ticket !== s.importTicket || !s.alive) return;
-        if (version !== s.editVersion) { s.importing = false; C.message('导入期间内容已修改，已忽略迟到的文件内容。请按需重新导入。', 'error'); return; }
+        if (version !== s.editVersion) { s.importing = false; C.message(t('staleImport'), 'error'); return; }
         s.jsonText = text; s.importing = false; C.touch();
         try {
           const res = A.parseWorkflow({ ...d, name: d.name || 'import' }, text);
           d.definition = res.definition;
-          s.notice = { text: '文件已导入并解析有效，请核对绑定后保存。', type: 'success' };
+          s.notice = { text: t('fileImported'), type: 'success' };
         } catch (error) {
           s.notice = { text: error.message, type: 'error' };
         }
@@ -184,43 +185,43 @@
       } catch (error) {
         if (epoch === s.epoch && ticket === s.importTicket && s.alive) {
           s.importing = false;
-          C.message(error.message === '文件不能超过 200 KiB。' ? error.message : '文件读取失败，原有内容已保留。', 'error');
+          C.message(error.message === t('fileTooLarge') ? error.message : t('fileReadFailed'), 'error');
         }
       }
     } });
 
-    const parseBtn = button('解析 JSON', () => {
+    const parseBtn = button(t('parseJson'), () => {
       try {
         const res = A.parseWorkflow(d, s.jsonText);
         d.definition = res.definition;
         const count = Object.keys(res.definition?.prompt || res.definition || {}).length;
-        C.message(`JSON 解析有效 · 包含 ${count} 个 API 节点`, 'success');
+        C.message(t('parsed', { p1: count }), 'success');
       } catch (err) {
         C.message(err.message, 'error');
       }
     }, { class: 'duty-test-btn', disabled: s.busy || !s.jsonText?.trim() });
 
-    const importBtn = button(s.importing ? '正在读取文件…' : '导入 JSON', () => file.click(), { class: 'duty-test-btn', disabled: s.busy || s.importing });
+    const importBtn = button(s.importing ? t('readingFile') : t('importJson'), () => file.click(), { class: 'duty-test-btn', disabled: s.busy || s.importing });
     const jsonActions = h('div', { class: 'inline' }, importBtn, parseBtn);
 
     const definitionCard = h('div', { class: 'duty-card' },
       h('div', { class: 'block' },
-        h('textarea', { id: 'workflow-json', class: 'code', 'aria-label': 'API JSON', spellcheck: 'false', placeholder: '在此粘贴从 ComfyUI 导出的 API 格式 JSON', disabled: s.busy, oninput: e => { s.jsonText = e.target.value; C.touch(); } }, s.jsonText)),
-      note('从 ComfyUI 导出 API 格式。最多 200 KiB、300 个节点；不要包含密钥或认证信息。'),
+        h('textarea', { id: 'workflow-json', class: 'code', 'aria-label': 'API JSON', spellcheck: 'false', placeholder: t('jsonPlaceholder'), disabled: s.busy, oninput: e => { s.jsonText = e.target.value; C.touch(); } }, s.jsonText)),
+      note(t('jsonHelp')),
       file);
 
     // 节点真实输入与绑定编辑器（DutyDeck WorkflowDefinitionEditor 风格）
     const allFields = listMediaWorkflowFields(promptObj);
     const visibleFields = allFields.filter(f => f.nodeId === s.selectedNodeId);
 
-    const nodeSelector = picker('选择查看节点', s.selectedNodeId, nodeIds.map(nid => {
+    const nodeSelector = picker(t('selectNode'), s.selectedNodeId, nodeIds.map(nid => {
       const node = promptObj[nid];
       return { value: nid, label: `${node?._meta?.title || node?.class_type || 'Node'} · ${nid}` };
     }), value => { s.selectedNodeId = value; C.render(); }, s.busy);
 
     const nodeFieldsList = h('div', { class: 'duty-node-fields-list' });
     if (!visibleFields.length) {
-      nodeFieldsList.append(A.empty('该节点没有输入字段', '请选择其他节点配置输入'));
+      nodeFieldsList.append(A.empty(t('noInputs'), t('selectOtherNode')));
     } else {
       visibleFields.forEach(fieldItem => {
         const binding = (d.definition?.bindings || d.bindings || []).find(b => b.nodeId === fieldItem.nodeId && b.input === fieldItem.input);
@@ -246,16 +247,16 @@
             }),
             h('div', { class: 'duty-field-meta' },
               h('span', { class: 'duty-field-name' }, fieldItem.input),
-              h('span', { class: 'duty-field-value' }, `默认值：${JSON.stringify(fieldItem.value)}${fieldItem.reason ? ` · ${fieldItem.reason}` : ''}`))
+              h('span', { class: 'duty-field-value' }, t('defaultValue', { p1: JSON.stringify(fieldItem.value), p2: fieldItem.reason ? ` · ${fieldItem.reason}` : '' })))
           )
         );
 
         if (binding?.field) {
           const controls = controlsForField(fieldItem);
           const metaGrid = h('div', { class: 'duty-binding-config-grid' },
-            field('字段 Key', input(`字段 Key`, binding.key, val => { binding.key = val; C.touch(); }, { disabled: s.busy })),
-            field('标签', input(`标签`, binding.field.label, val => { binding.field.label = val; C.touch(); }, { disabled: s.busy })),
-            field('控件类型', picker('控件类型', binding.field.controlType, controls.map(c => ({ value: c, label: controlLabels[c] || c })), val => {
+            field(t('fieldKey'), input(t('fieldKey'), binding.key, val => { binding.key = val; C.touch(); }, { disabled: s.busy })),
+            field(t('label'), input(t('label'), binding.field.label, val => { binding.field.label = val; C.touch(); }, { disabled: s.busy })),
+            field(t('controlType'), picker(t('controlType'), binding.field.controlType, controls.map(c => ({ value: c, label: controlLabels[c] || c })), val => {
               const recreated = createFieldBinding(fieldItem, val);
               Object.assign(binding, recreated, { key: binding.key });
               binding.field.label = fieldItem.input;
@@ -268,7 +269,7 @@
                 disabled: s.busy,
                 onchange: e => { binding.field.required = e.target.checked; C.touch(); }
               }),
-              '必填项')
+              t('required'))
           );
           itemBox.append(metaGrid);
         }
@@ -277,35 +278,35 @@
     }
 
     const nodeInspectionCard = h('div', { class: 'duty-card duty-workflow-nodes-card' },
-      field('节点', nodeSelector),
+      field(t('node'), nodeSelector),
       nodeFieldsList);
 
     // 保持原有简单绑定行的兼容性（针对自动化测试）
     const legacyBindings = h('div', { class: 'duty-card' });
-    if (!(d.bindings || []).length) legacyBindings.append(A.empty('暂无输入绑定', '按需关联提示词、种子或尺寸等输入。'));
+    if (!(d.bindings || []).length) legacyBindings.append(A.empty(t('noBindings'), t('bindingsHelp')));
     (d.bindings || []).forEach((binding, index) => {
       const update = (key, value) => { binding[key] = value; C.touch(); };
       legacyBindings.append(h('div', { class: 'model-row binding-row' },
-        h('div', {}, h('label', {}, '用途'), picker(`绑定 ${index + 1} 用途`, binding.purpose || 'prompt', Object.entries(purposes).map(([value, label]) => ({ value, label })), value => { update('purpose', value); C.render(); }, s.busy)),
-        h('div', {}, h('label', { for: `binding-node-${index}` }, '节点 ID'), input(`绑定 ${index + 1} 节点 ID`, binding.nodeId, value => update('nodeId', value), { id: `binding-node-${index}`, disabled: s.busy })),
-        h('div', {}, h('label', { for: `binding-input-${index}` }, '输入字段'), input(`绑定 ${index + 1} 输入字段`, binding.input, value => update('input', value), { id: `binding-input-${index}`, disabled: s.busy })),
-        button('', () => { d.bindings.splice(index, 1); C.touch(); C.render(); }, { class: 'model-remove-btn', 'aria-label': `移除绑定 ${index + 1}`, title: `移除绑定 ${index + 1}`, disabled: s.busy })));
+        h('div', {}, h('label', {}, t('purpose')), picker(t('bindingPurpose', { p1: index + 1 }), binding.purpose || 'prompt', Object.entries(purposes).map(([value, label]) => ({ value, label })), value => { update('purpose', value); C.render(); }, s.busy)),
+        h('div', {}, h('label', { for: `binding-node-${index}` }, t('nodeId')), input(t('bindingNode', { p1: index + 1 }), binding.nodeId, value => update('nodeId', value), { id: `binding-node-${index}`, disabled: s.busy })),
+        h('div', {}, h('label', { for: `binding-input-${index}` }, t('inputField')), input(t('bindingInput', { p1: index + 1 }), binding.input, value => update('input', value), { id: `binding-input-${index}`, disabled: s.busy })),
+        button('', () => { d.bindings.splice(index, 1); C.touch(); C.render(); }, { class: 'model-remove-btn', 'aria-label': t('removeBinding', { p1: index + 1 }), title: t('removeBinding', { p1: index + 1 }), disabled: s.busy })));
       legacyBindings.querySelector(`.model-row:last-child .model-remove-btn`)?.append(A.svgIcon('x', 14));
     });
 
-    const addBindingBtn = button('添加绑定', () => {
+    const addBindingBtn = button(t('addBinding'), () => {
       d.bindings = d.bindings || [];
       d.bindings.push({ purpose: 'prompt', nodeId: '', input: '' });
       C.touch(); C.render();
     }, { class: 'fetch-supplier-btn', disabled: s.busy || (d.bindings && d.bindings.length >= 12) });
 
     const view = h('div', { class: 'duty-editor' },
-      section('基本信息', basics),
+      section(t('basics'), basics),
       section('ComfyUI API JSON', definitionCard, jsonActions),
-      nodeIds.length ? section('节点参数与表单绑定', nodeInspectionCard) : null,
-      section('输入绑定', legacyBindings, addBindingBtn),
-      section('节点检查', h('div', { class: 'duty-card' }, note(s.probe ? A.probeText(s.probe) : '保存并启用工作流及其连接后，可只读检查服务与节点类型。'), s.probe?.nodeTypes?.length ? note(`节点类型：${s.probe.nodeTypes.join('、')}`) : null),
-        button('检查工作流节点', () => C.probe(), { 'data-probe': '', class: 'fetch-supplier-btn', disabled: !C.canProbe() })));
+      nodeIds.length ? section(t('nodeParameters'), nodeInspectionCard) : null,
+      section(t('bindings'), legacyBindings, addBindingBtn),
+      section(t('nodeCheck'), h('div', { class: 'duty-card' }, note(s.probe ? A.probeText(s.probe) : t('nodeCheckHelp')), s.probe?.nodeTypes?.length ? note(t('nodeTypes', { p1: s.probe.nodeTypes.join('、') })) : null),
+        button(t('checkNodes'), () => C.probe(), { 'data-probe': '', class: 'fetch-supplier-btn', disabled: !C.canProbe() })));
     return view;
   };
 })();

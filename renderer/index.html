@@ -4,23 +4,23 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="pi-plugin-chrome" content="v2" />
-  <title>Bone AI 媒体服务 0.5.1</title>
+  <title>Bone AI 媒体服务 0.5.4</title>
   <link rel="stylesheet" href="settings.css" />
   <link rel="stylesheet" href="settings-generation.css" />
-  <script defer src="settings-ui.js"></script>
-  <script defer src="settings-bridge.js"></script>
-  <script defer src="settings-profile.js"></script>
-  <script defer src="settings-workflow.js"></script>
-  <script defer src="settings-remote.js"></script>
-  <script defer src="settings-preview.js"></script>
-  <script defer src="settings-records.js"></script>
-  <script defer src="settings-records-page.js"></script>
-  <script defer src="settings-generation.js"></script>
-  <script defer src="settings-audio.js"></script>
-  <script defer src="settings-app.js"></script>
+  <script defer src="settings-i18n.js"></script>
+  <script defer src="i18n/shell.js"></script>
+  <script defer src="i18n/catalog.js"></script>
+  <script defer src="i18n/ui.js"></script>
+  <script defer src="i18n/app.js"></script>
+  <script defer src="i18n/profile.js"></script>
+  <script defer src="i18n/workflow.js"></script>
+  <script defer src="i18n/remote.js"></script>
+  <script defer src="i18n/records.js"></script>
+  <script defer src="i18n/preview.js"></script>
+  <script defer src="settings-bootstrap.js"></script>
 </head>
 <body>
-  <main id="app" aria-label="媒体服务设置"><p class="loading" role="status">正在读取配置…</p></main>
-  <noscript>请启用 JavaScript 以管理媒体服务配置。</noscript>
+  <main id="app" aria-label="媒体服务设置" hidden><p class="loading" role="status">正在读取配置…</p></main>
+  <noscript id="no-script">请启用 JavaScript 以管理媒体服务配置。</noscript>
 </body>
 </html>

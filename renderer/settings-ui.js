@@ -1,7 +1,8 @@
 /* Shared accessible controls. All user and provider text is inserted as text. */
 (() => {
   'use strict';
-  const A = window.AIMedia = {};
+  const A = window.AIMedia;
+  const t = A.i18n.scope('ui');
   const h = A.h = (tag, attrs = {}, ...children) => {
     const node = document.createElement(tag);
     for (const [key, value] of Object.entries(attrs)) {
@@ -16,13 +17,13 @@
     });
     return node;
   };
-  A.kinds = { image: '图片', video: '视频', audio: '音频' };
+  A.kinds = { image: t('image'), video: t('video'), audio: t('audio') };
   A.capabilityText = model => {
     const kind = model.kind || 'image';
-    if (kind === 'image') return '文生图 / 图生图';
-    if (kind === 'video') return '文生视频 / 图生视频';
-    if (kind === 'audio') return '语音合成';
-    return '媒体生成';
+    if (kind === 'image') return t('imageCapability');
+    if (kind === 'video') return t('videoCapability');
+    if (kind === 'audio') return t('speech');
+    return t('mediaCapability');
   };
   A.svgIcon = (name, size = 16) => {
     const icons = {
@@ -66,7 +67,7 @@
   A.picker = (label, value, options, change, disabled = false) => {
     const selected = options.find(option => option.value === value);
     const details = h('details', { class: 'picker' });
-    const summary = h('summary', { role: 'button', 'aria-label': label, 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-disabled': String(disabled), tabindex: disabled ? -1 : 0 }, selected?.label || value || '未选择');
+    const summary = h('summary', { role: 'button', 'aria-label': label, 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-disabled': String(disabled), tabindex: disabled ? -1 : 0 }, selected?.label || value || t('unselected'));
     const list = h('ul', { class: 'options', role: 'listbox', 'aria-label': label });
     const buttons = options.map(option => {
       const button = A.button(option.label, () => {
@@ -99,38 +100,13 @@
     details.append(summary, list);
     return details;
   };
-  // Preserve text selection and open custom pickers across asynchronous form updates.
-  A.replaceFormView = (mounted, view, render) => {
-    const focused = document.activeElement, id = focused?.id;
-    const selection = focused instanceof HTMLTextAreaElement || focused instanceof HTMLInputElement && focused.selectionStart !== null ? [focused.selectionStart, focused.selectionEnd] : null;
-    const expanded = [...(mounted?.querySelectorAll('details.picker[open] > summary[id]') || [])].map(summary => summary.id);
-    const focusedPicker = focused?.getAttribute('role') === 'option' ? focused.closest('details')?.querySelector('summary')?.id : null;
-    const focusedOption = focusedPicker ? focused.textContent : null;
-    // Detached toggle handlers must not close newly restored pickers.
-    for (const pickerId of expanded) document.getElementById(pickerId).parentElement.open = false;
-    if (mounted?.isConnected) mounted.replaceWith(view()); else render();
-    for (const pickerId of expanded) {
-      const summary = document.getElementById(pickerId);
-      if (summary?.getAttribute('aria-disabled') !== 'true' && summary?.parentElement) {
-        summary.parentElement.open = true; summary.setAttribute('aria-expanded', 'true');
-      }
-    }
-    if (focusedPicker) {
-      const details = document.getElementById(focusedPicker)?.parentElement;
-      [...(details?.querySelectorAll('[role="option"]') || [])].find(option => option.textContent === focusedOption)?.focus({ preventScroll: true });
-    }
-    if (id) {
-      const control = document.getElementById(id); control?.focus({ preventScroll: true });
-      if (selection && (control instanceof HTMLTextAreaElement || control instanceof HTMLInputElement && control.selectionStart !== null)) control.setSelectionRange(...selection);
-    }
-  };
   A.toggle = (label, checked, change, disabled) => h('label', { class: 'switch-line' },
     h('input', { type: 'checkbox', role: 'switch', 'aria-label': label, checked, disabled, onchange: e => change(e.target.checked) }), label);
-  A.confirm = (title, text, accept = '放弃修改') => new Promise(resolve => {
+  A.confirm = (title, text, accept = t('discard')) => new Promise(resolve => {
     const oldFocus = document.activeElement;
     const dialog = h('dialog', { class: 'dialog', 'aria-labelledby': 'confirm-title' }, h('h2', { id: 'confirm-title' }, title), h('p', {}, text));
     const finish = value => { dialog.close(); dialog.remove(); if (oldFocus?.isConnected) oldFocus.focus(); resolve(value); };
-    const cancel = A.button('取消', () => finish(false));
+    const cancel = A.button(t('cancel'), () => finish(false));
     dialog.append(h('div', { class: 'actions' }, cancel, A.button(accept, () => finish(true), { class: 'primary' })));
     dialog.addEventListener('cancel', e => { e.preventDefault(); finish(false); });
     document.body.append(dialog); dialog.showModal(); cancel.focus();
@@ -140,65 +116,65 @@
     return Object.fromEntries(keys.filter(key => Object.hasOwn(profile, key)).map(key => [key, A.clone(profile[key])]));
   };
   A.errorText = error => ({
-    CONFLICT: '配置已在其他页面更新。当前输入已保留，请重新读取后再编辑。',
-    INVALID_ARGUMENT: '配置未通过校验。请检查名称、服务地址、模型及引用；输入已保留。',
-    DISABLED: '请先保存并启用此配置。',
-    PROBE_PENDING: '已有目录查询正在进行，请稍后再试。',
-    NOT_FOUND: '配置已不存在，请重新读取。',
-    STORAGE_ERROR: '无法保存配置，请检查本地存储后重新读取。',
-    DISPOSED: '服务已重启，请重新读取配置；已保存密钥会自动恢复。',
-    CREDENTIAL_UNAVAILABLE: '当前系统无法使用插件密钥存储；此版本支持 macOS 钥匙串，原配置已保留。',
-    PLUGIN_RELOAD_REQUIRED: '插件后台尚未更新，请在插件管理中重载 Bone AI 媒体服务后重新打开页面。',
-    CREDENTIAL_ERROR: '密钥无法安全保存或恢复，请检查登录钥匙串是否解锁、允许访问；原配置已保留。',
-    CREDENTIAL_LEGACY: '配置使用旧版宿主加密格式，需要原加密环境才能恢复；原文件已保留。',
-    GENERATION_UNSUPPORTED: '请选择已配置且受支持的 GPT 图片模型或 MiniMax 语音模型。',
-    GENERATION_BUSY: '已有生成任务占用并发额度，请等待后再提交。',
-    GENERATION_LIMIT: '此媒体的本地记录已达到容量上限，未提交新的生成请求。',
-    GENERATION_UNKNOWN: '生成结果尚不确定，请先检查供应商记录，勿直接重复生成。',
-    GENERATION_REQUEST_CONFLICT: '任务参数与已准备请求不一致，请重新核对。',
-    RESULT_INVALID: '结果校验未通过，未作为成功结果保存；请检查供应商记录。',
-    RESULT_UNAVAILABLE: '当前没有可读取的本地结果，请重新读取任务核对。',
-    CREDENTIAL_REQUIRED: '请先在配置中保存所选服务的 API Key。',
-    TOOL_ABORTED: '宿主工具调用已中断，尚未取得供应商结果；是否扣费未知，请勿重复提交。',
-    TIMEOUT: '等待供应商响应超时，生成结果和费用仍需核对，请勿直接重复生成。',
-    NETWORK_ERROR: '供应商请求未完成，生成结果和费用尚不确定，请检查网络及供应商记录。',
-    AUTHENTICATION_REQUIRED: '供应商拒绝认证，请检查所选服务的 API Key。',
-    RATE_LIMITED: '供应商拒绝了请求，请检查额度与调用限制；此任务不会自动重试。',
-    HTTP_ERROR: '供应商返回错误，请检查服务状态；此任务不会自动重试。',
-    PERMISSION_DENIED: '宿主未授权此操作，请检查插件权限。'
-  }[error?.code] || '请求未完成，请检查服务状态后重新读取。');
+    CONFLICT: t('conflict'),
+    INVALID_ARGUMENT: t('invalidArgument'),
+    DISABLED: t('disabled'),
+    PROBE_PENDING: t('probePending'),
+    NOT_FOUND: t('notFound'),
+    STORAGE_ERROR: t('storageError'),
+    DISPOSED: t('disposed'),
+    CREDENTIAL_UNAVAILABLE: t('credentialUnavailable'),
+    PLUGIN_RELOAD_REQUIRED: t('reloadRequired'),
+    CREDENTIAL_ERROR: t('credentialError'),
+    CREDENTIAL_LEGACY: t('credentialLegacy'),
+    GENERATION_UNSUPPORTED: t('generationUnsupported'),
+    GENERATION_BUSY: t('generationBusy'),
+    GENERATION_LIMIT: t('generationLimit'),
+    GENERATION_UNKNOWN: t('generationUnknown'),
+    GENERATION_REQUEST_CONFLICT: t('generationConflict'),
+    RESULT_INVALID: t('resultInvalid'),
+    RESULT_UNAVAILABLE: t('resultUnavailable'),
+    CREDENTIAL_REQUIRED: t('credentialRequired'),
+    TOOL_ABORTED: t('toolAborted'),
+    TIMEOUT: t('timeout'),
+    NETWORK_ERROR: t('networkError'),
+    AUTHENTICATION_REQUIRED: t('authenticationRequired'),
+    RATE_LIMITED: t('rateLimited'),
+    HTTP_ERROR: t('httpError'),
+    PERMISSION_DENIED: t('permissionDenied')
+  }[error?.code] || t('requestFailed'));
   A.connectionProbeText = result => {
-    if (result?.status === 'connected') return '连接正常 · 系统状态可访问';
-    if (result?.connectionStatus === 'connected' && result.workflowCompatible === false) return '连接正常，但工作流所需节点不齐全。';
+    if (result?.status === 'connected') return t('connectionHealthy');
+    if (result?.connectionStatus === 'connected' && result.workflowCompatible === false) return t('nodesMissing');
     const permissionCodes = ['PERMISSION_DENIED', 'HOST_PERMISSION_DENIED', 'NETWORK_PERMISSION_DENIED', 'NET_PERMISSION_DENIED', 'CAPABILITY_DENIED', 'FORBIDDEN', 'APPROVAL_REQUIRED'];
     const messages = {
-      CREDENTIAL_REQUIRED: '请填写认证秘密并保存。',
-      AUTHENTICATION_REQUIRED: '服务拒绝认证，请检查认证方式和认证秘密。',
-      ENDPOINT_NOT_FOUND: '服务接口不存在，请检查地址及反向代理路径。',
-      REDIRECT_DISALLOWED: '服务返回重定向，请填写最终的 ComfyUI 地址。',
-      TIMEOUT: '连接超时，请检查服务和网络连接。',
-      NETWORK_ERROR: '无法连接服务，请检查地址、端口及网络连接。',
-      RESPONSE_TOO_LARGE: '接口响应超过 2 MiB，未完成目录检查。',
-      INVALID_JSON: '接口未返回有效 JSON，请检查地址或代理登录页面。',
-      INVALID_RESPONSE: '接口返回格式不符合 ComfyUI 协议。',
-      HTTP_ERROR: '服务返回错误，请检查服务状态。'
+      CREDENTIAL_REQUIRED: t('enterSecret'),
+      AUTHENTICATION_REQUIRED: t('connectionAuthentication'),
+      ENDPOINT_NOT_FOUND: t('endpointMissing'),
+      REDIRECT_DISALLOWED: t('redirect'),
+      TIMEOUT: t('connectionTimeout'),
+      NETWORK_ERROR: t('connectionNetwork'),
+      RESPONSE_TOO_LARGE: t('responseTooLarge'),
+      INVALID_JSON: t('invalidJson'),
+      INVALID_RESPONSE: t('invalidResponse'),
+      HTTP_ERROR: t('connectionHttp')
     };
-    const reason = permissionCodes.includes(result?.code) ? '宿主未授权网络访问，请检查插件权限。' : messages[result?.code] || '连接检查未完成，请检查服务状态后重试。';
+    const reason = permissionCodes.includes(result?.code) ? t('networkPermission') : messages[result?.code] || t('connectionFailed');
     const stage = ['system_stats', 'object_info'].includes(result?.endpoint) ? `/${result.endpoint}：` : '';
     const status = Number.isInteger(result?.httpStatus) && result.httpStatus >= 100 && result.httpStatus <= 599 ? `（HTTP ${result.httpStatus}）` : '';
-    return `${result?.connectionStatus === 'connected' ? '连接正常，工作流尚未验证。' : ''}${stage}${reason}${status}`;
+    return `${result?.connectionStatus === 'connected' ? t('workflowUnverified') : ''}${stage}${reason}${status}`;
   };
   A.minimaxCatalogText = (result, kind = 'models') => {
-    const label = kind === 'models' ? '云端模型' : '音色';
+    const label = kind === 'models' ? t('cloudModels') : t('voices');
     const catalog = result?.catalogs?.[kind];
-    if (!catalog) return kind === 'models' ? '内置目录可直接添加；点击右侧「从供应商获取」查询云端模型。' : '点击右侧「从供应商获取」查看账号音色。';
+    if (!catalog) return kind === 'models' ? t('builtinHelp') : t('voicesHelp');
     const count = (result[kind] || []).length;
     if (catalog?.status === 'connected') return kind === 'models'
-      ? count ? `已从云端获取 ${count} 个媒体模型，已与内置目录合并。` : '云端未返回媒体模型（已过滤聊天模型），仍可使用内置目录。'
-      : count ? `已获取 ${count} 个账号音色。` : '账号未返回可用音色。';
-    const reasons = { CREDENTIAL_REQUIRED: '请填写 API Key', AUTHENTICATION_REQUIRED: '认证失败，请检查 API Key', ENDPOINT_NOT_FOUND: '供应商未提供此目录接口', TIMEOUT: '请求超时', NETWORK_ERROR: '网络连接失败', INVALID_JSON: '接口未返回有效 JSON', INVALID_RESPONSE: '供应商返回错误或无效目录', RESPONSE_TOO_LARGE: '目录响应超过大小上限', PERMISSION_DENIED: '宿主未授权网络访问' };
-    return `${label}查询未完成：${reasons[catalog?.code || result.code] || '请检查地址、凭据及服务状态'}。${kind === 'models' ? '内置目录仍可使用。' : ''}`;
+      ? count ? t('cloudModelsLoaded', { p1: count }) : t('cloudModelsEmpty')
+      : count ? t('voicesLoaded', { p1: count }) : t('voicesEmpty');
+    const reasons = { CREDENTIAL_REQUIRED: t('keyMissing'), AUTHENTICATION_REQUIRED: t('authFailed'), ENDPOINT_NOT_FOUND: t('catalogUnsupported'), TIMEOUT: t('queryTimeout'), NETWORK_ERROR: t('queryNetwork'), INVALID_JSON: t('queryInvalidJson'), INVALID_RESPONSE: t('queryInvalidResponse'), RESPONSE_TOO_LARGE: t('queryTooLarge'), PERMISSION_DENIED: t('queryPermission') };
+    return t('queryFailed', { p1: label, p2: reasons[catalog?.code || result.code] || t('checkService'), p3: kind === 'models' ? t('builtinAvailable') : '' });
   };
-  A.probeText = result => ({ connected: '目录可访问 · 尚未验证生成能力', unavailable: '暂时无法访问目录，请检查地址、凭据和服务状态。', unsupported: '当前接入方式不支持此项目录查询。' }[result?.status] || '未获得有效的目录结果。');
+  A.probeText = result => ({ connected: t('catalogAccessible'), unavailable: t('catalogUnavailable'), unsupported: t('catalogUnsupportedMode') }[result?.status] || t('catalogInvalid'));
   document.addEventListener('click', e => document.querySelectorAll('details.picker[open]').forEach(details => { if (!details.contains(e.target)) details.open = false; }));
 })();

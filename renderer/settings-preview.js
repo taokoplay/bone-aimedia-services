@@ -2,9 +2,10 @@
 (() => {
   'use strict';
   const A = window.AIMedia;
+  const t = A.i18n.scope('preview');
   const { h, button, note } = A;
   const failure = () => Object.assign(new Error('RESULT_INVALID'), { code: 'RESULT_INVALID' });
-  A.audioDuration = ms => `${(ms / 1000).toFixed(2)} 秒`;
+  A.audioDuration = ms => t('seconds', { p1: (ms / 1000).toFixed(2) });
   A.resultPreviewController = ({ live, disabled, showing, read, paint }) => {
     let ticket = 0, preview = null;
     function release(value) {
@@ -62,34 +63,34 @@
           if (!current()) return;
           if (decoded.numberOfChannels !== result.channels || Math.abs(decoded.duration * 1000 - result.durationMs) > tolerance) throw failure();
           value.url = URL.createObjectURL(blob);
-          value.media = h('audio', { controls: true, preload: 'metadata', 'aria-label': '生成语音预览', tabindex: 0 });
+          value.media = h('audio', { controls: true, preload: 'metadata', 'aria-label': t('audioPreview'), tabindex: 0 });
           await metadata(value.media, value);
           if (!current()) return;
           if (!Number.isFinite(value.media.duration) || Math.abs(value.media.duration * 1000 - result.durationMs) > tolerance) throw failure();
         } else {
           value.url = URL.createObjectURL(blob);
-          value.media = new Image(); value.media.alt = '生成图片预览'; value.media.src = value.url;
+          value.media = new Image(); value.media.alt = t('imagePreview'); value.media.src = value.url;
           await value.media.decode();
           if (!current()) return;
           if (value.media.naturalWidth !== result.width || value.media.naturalHeight !== result.height) throw failure();
         }
         value.node = h('div', { class: `generation-result${audio ? ' audio-result' : ''}` }, value.media,
-          h('div', { class: 'generation-result-actions' }, h('a', { class: 'generation-download', href: value.url, download: `${job.id}.${audio ? 'mp3' : 'png'}` }, audio ? '下载 MP3' : '下载 PNG'),
-            h('span', { class: 'muted' }, audio ? `${A.audioDuration(result.durationMs)} · ${result.sampleRate} Hz · ${result.channels} 声道 · 内容未评审` : `${result.width} × ${result.height} · 画面质量未评审`)));
+          h('div', { class: 'generation-result-actions' }, h('a', { class: 'generation-download', href: value.url, download: `${job.id}.${audio ? 'mp3' : 'png'}` }, audio ? t('downloadMp3') : t('downloadPng')),
+            h('span', { class: 'muted' }, audio ? t('audioMetadata', { p1: A.audioDuration(result.durationMs), p2: result.sampleRate, p3: result.channels }) : t('imageMetadata', { p1: result.width, p2: result.height }))));
       } catch (error) {
         if (!current()) return;
         release(value);
-        const name = audio ? '音频' : '图片';
-        value.error = error.code === 'RESULT_UNAVAILABLE' ? `本地${name}暂不可用，请重新读取任务核对。不会重新生成。` : `${name}无法通过完整性检查或浏览器解码，无法预览和下载。不会重新生成。`;
+        const name = audio ? t('audio') : t('image');
+        value.error = error.code === 'RESULT_UNAVAILABLE' ? t('unavailable', { p1: name }) : t('invalid', { p1: name });
       } finally { if (current()) { value.loading = false; paint(); } }
     }
     function view(job) {
-      const audio = job.kind === 'audio', name = audio ? '音频' : '图片';
-      if (!job.result) return note(`暂无可读取的本地${name}。`);
-      if (preview?.id !== job.id) return h('div', { class: 'block' }, button(`预览${name}`, () => load(job), { disabled: disabled() }));
-      if (preview.loading) return h('p', { class: 'note', role: 'status' }, `正在读取本地 ${audio ? 'MP3' : 'PNG'} 并解码…`);
+      const audio = job.kind === 'audio', name = audio ? t('audio') : t('image');
+      if (!job.result) return note(t('noResult', { p1: name }));
+      if (preview?.id !== job.id) return h('div', { class: 'block' }, button(t('preview', { p1: name }), () => load(job), { disabled: disabled() }));
+      if (preview.loading) return h('p', { class: 'note', role: 'status' }, t('loading', { p1: audio ? 'MP3' : 'PNG' }));
       if (preview.error) return h('div', {}, h('p', { class: 'generation-error', role: 'alert' }, preview.error),
-        button(`重试读取${name}`, () => { clear(); void load(job); }, { disabled: disabled() }));
+        button(t('retry', { p1: name }), () => { clear(); void load(job); }, { disabled: disabled() }));
       return preview.node;
     }
     return { load, clear, view, key: () => `${ticket}:${preview?.loading}:${preview?.error || ''}`, failed: id => preview?.id === id && Boolean(preview.error) };

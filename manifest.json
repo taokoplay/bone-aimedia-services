@@ -1,9 +1,26 @@
 {
   "schemaVersion": 1,
   "id": "bone.aimedia.services",
-  "name": "Bone AI 媒体服务",
-  "version": "0.5.1",
-  "description": "Agent-driven GPT image and MiniMax speech generation with encrypted configuration, durable jobs, unified records, preview/playback and permission-scoped workspace export.",
+  "name": "AI媒体生成服务",
+  "version": "0.6.0",
+  "description": "Agent-driven GPT images, reference-image edits on capable Hosts and MiniMax speech, with encrypted configuration, project-aware records and scoped original-file export.",
+  "author": "taokoplay",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://github.com/taokoplay/bone-aimedia-services",
+  "categories": ["ai", "media"],
+  "safetyNotes": "Authorized generation sends prompts, speech text or reference images to the selected provider and may incur charges. Credentials use a macOS Keychain-backed encryption key. Workspace reads are limited to bone-media/references/** and bone-media/exports/**; writes stay under bone-media/exports/**. Reference edits require Host binary upload support and hash-verified local images. Unknown tasks are never automatically resubmitted. Masks, sound effects, music, video and ComfyUI execution are unavailable.",
+  "i18n": {
+    "en": {
+      "name": "AI Media Services",
+      "description": "Generate GPT images, reference-image edits on capable Hosts and MiniMax speech from Agent conversations. Keep encrypted services, project labels, bilingual records, previews and original PNG or MP3 exports.",
+      "safetyNotes": "Authorized generation sends prompts, speech text or reference images to the selected provider and may incur charges. Credentials use a macOS Keychain-backed encryption key. Workspace reads are limited to bone-media/references/** and bone-media/exports/**; writes stay under bone-media/exports/**. Reference edits require Host binary upload support and hash-verified local images. Unknown tasks are never automatically resubmitted. Masks, sound effects, music, video and ComfyUI execution are unavailable."
+    },
+    "zh-CN": {
+      "name": "AI媒体生成服务",
+      "description": "通过 Agent 对话生成 GPT 图片和 MiniMax 语音；兼容宿主支持参考图生图。保留加密服务、项目标签、中英文记录、预览试听及原始 PNG、MP3 导出。",
+      "safetyNotes": "经授权的生成会将提示词、朗读文本或参考图发送至所选供应商，可能产生费用。凭据使用 macOS 钥匙串主密钥加密。工作区读取仅限 bone-media/references/** 和 bone-media/exports/**，写入仍限 bone-media/exports/**。参考图生图需宿主支持二进制上传，并校验本地图片哈希。结果未知的任务不会自动重试。暂不支持蒙版、环境音效、音乐、视频及 ComfyUI 执行。"
+    }
+  },
   "main": "main.js",
   "contributes": {
     "views": [

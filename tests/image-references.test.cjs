@@ -260,3 +260,20 @@ test("advertised binary support cannot hide a missing Host HTTP API", async t =>
   assert.equal(edit.ready, false); assert.deepEqual(edit.constraints.referenceImages, support);
   assert.equal(f.received.length, 0); assert.equal(f.reads.length, 0);
 });
+
+test("reference jobs retain project labels across restart and workspace changes", async t => {
+  const f = await fixture(t, { configureHost: host => {
+    const workspace = host.workspace.get;
+    host.workspace.get = async () => ({ ...await workspace(), name: "Reference release" });
+    host.session = { getActive: async () => ({ sessionId: context.sessionId, projectPath: (await workspace()).path }) };
+  } }), ref = await f.stage("subject");
+  const result = value(await f.call("generate_image", input([ref])));
+  assert.equal(result.job.state, "succeeded");
+  const selected = { kind: "image", jobId: result.job.id };
+  const expected = { status: "project", name: "Reference release" };
+  assert.deepEqual((await f.panel("aimedia.records.get", selected)).project, expected);
+  f.switchWorkspace(path.join(f.root, "other-workspace")); await f.reload();
+  assert.deepEqual((await f.panel("aimedia.records.get", selected)).project, expected);
+  assert.equal(value(await f.call("generate_image", input([ref]))).job.id, result.job.id);
+  assert.equal(f.received.length, 1);
+});

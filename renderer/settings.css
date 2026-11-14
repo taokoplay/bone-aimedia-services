@@ -301,12 +301,12 @@ pre.code { white-space:pre-wrap; overflow-wrap:anywhere; font:12px/1.65 ui-monos
 .duty-capsule { border:0; background:transparent; color:var(--muted); font-size:13px; font-weight:500; padding:6px 14px; border-radius:6px; min-height:30px; }
 .duty-capsule:hover { color:var(--fg); background:var(--hover); }
 .duty-capsule.active, .duty-capsule[aria-pressed="true"] { background:#2c2c2c; color:#fff; font-weight:600; box-shadow:0 1px 3px #0004; }
-.duty-list-header-right { display:flex; align-items:center; gap:10px; }
-.search-duty-box { position:relative; display:flex; align-items:center; width:260px; }
+.duty-list-header-right { display:flex; align-items:center; gap:10px; min-width:0; max-width:100%; }
+.search-duty-box { position:relative; display:flex; align-items:center; width:260px; min-width:0; }
 .search-icon-slot { position:absolute; left:12px; pointer-events:none; color:var(--muted); display:grid; place-items:center; }
 .search-duty-input { padding-left:36px; height:34px; min-height:34px; background:#161616; border-radius:8px; border:1px solid #ffffff18; font-size:13px; color:var(--fg); }
 .search-duty-input:focus { border-color:#ffffff33; outline:none; }
-.duty-add-btn { height:34px; min-height:34px; padding:0 14px; font-size:13px; font-weight:500; border-radius:8px; }
+.duty-add-btn { height:34px; min-height:34px; padding:0 14px; font-size:13px; font-weight:500; border-radius:8px; flex:none; white-space:nowrap; }
 
 .duty-card-list { border:1px solid #ffffff14; border-radius:10px; background:#121212; overflow:hidden; }
 .duty-service-row { display:flex; align-items:center; gap:14px; padding:14px 18px; min-height:76px; cursor:pointer; }

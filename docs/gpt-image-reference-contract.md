@@ -2,7 +2,8 @@
 
 This additive Agent interface extends the text-only image contract. It does not
 change existing text generation, credentials, output formats, model selection or
-paid-request idempotency. The manual image page remains text-only.
+paid-request idempotency. The panel provides configuration and records; creation
+uses Agent tools.
 
 ## Capability matching
 

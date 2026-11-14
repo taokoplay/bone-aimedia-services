@@ -1,11 +1,11 @@
-# MiniMax speech and unified records — 0.5.0
+# MiniMax speech and unified records — 0.5.4
 
 ## Scope and provider evidence
 
-This release adds text-to-speech only. The user explicitly chose to retain the
-current PI-Desktop client and implement MiniMax speech before environmental sound
-effects. Footsteps, ambience and music are not speech and must never be silently
-converted into spoken descriptions or locally synthesized substitutes.
+MiniMax text-to-speech was introduced in 0.5.0 without changing the PI-Desktop
+client. Version 0.5.4 removes manual image/speech forms; Agent tools create tasks
+and the records page previews results. Footsteps, ambience and music are not speech
+and must never become spoken descriptions or locally synthesized substitutes.
 
 The official [MiniMax HTTP speech reference](https://platform.minimax.io/docs/api-reference/speech-t2a-http)
 specifies `POST /v1/t2a_v2`, `stream:false`, `output_format:hex`, an explicit
@@ -105,10 +105,11 @@ and do not cause retries of generation. Historical channel/model metadata is use
 
 ## Representative acceptance paths
 
-1. Configure an enabled MiniMax speech model with a synthetic credential; discover
-   voices, explicitly choose one, enter text/speed, prepare and confirm once.
-2. Observe submitting -> succeeded in the same task, then open the unified records
-   dialog, browser-decode/play audio and download matching original bytes.
+1. Configure an enabled MiniMax speech model with a synthetic credential. Use the
+   registered audio_voices tool, explicitly choose a voice and call generate_audio
+   with text/speed and one stable requestKey.
+2. Observe submitting -> succeeded in the unified records dialog, then
+   browser-decode/play audio and download matching original bytes.
 3. Generate an image and speech through the real Agent-tool entry and confirm both
    appear in the unified list. Restart, query/export and retry the same requestKey
    without another generation POST.

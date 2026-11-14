@@ -1,10 +1,11 @@
-# GPT image generation: implementation and usage plan
+# GPT image generation: implementation and usage
 
-Target: plugin 0.3.0 on the existing PI-Desktop 0.21.0 client. No client changes.
-Version 0.4.0 makes Agent conversation the primary entry. See
+Current UI: plugin 0.6.0 on the existing PI-Desktop 0.21.0 client; reference-image
+input additionally requires the Host capabilities in the reference contract.
+Agent conversation is the generation entry. The panel contains Configuration and
+Generation Records; manual generation forms are removed. See
 [the Agent contract](agent-image-contract.md) for model resolution, simplified
-tools, typed image delivery and scoped export. The manual flow below remains
-available for diagnostics and backward compatibility.
+tools, typed image delivery and scoped export.
 
 The [reference-image extension](gpt-image-reference-contract.md) supersedes the
 reference-image non-goal below. It requires an updated host with binary request
@@ -22,34 +23,34 @@ No model, endpoint or credential fallback after preparing a request.
 
 ## User workflow
 
-1. Save an enabled OpenAI service and Keychain credential, then choose a configured
-   GPT image model on the Generate page. Existing global defaults are unchanged.
-2. Enter a prompt, size and quality. Prepare creates an immutable local request;
-   it does not call the provider or incur a generation charge.
-3. Review the exact service/model/parameters and confirm generation of one image.
-   Pricing is unknown unless the provider supplies an authoritative contract.
-4. The panel records submission before dispatch and returns a local job ID immediately,
-   and sends at most one provider request for that job. Closing the panel does not
-   issue another request. Local status refresh never invokes generation.
-5. After success, preview the decoded PNG and explicitly download it. Records
-   survive reload. Existing ComfyUI server history/queue stays separate.
+1. Save an enabled OpenAI service and Keychain credential in Configuration.
+   Existing global defaults are unchanged.
+2. Ask the Agent for one image with the desired service/model, prompt, size and
+   quality. media_catalog lists the actual configured modelRef values.
+3. Within the user's authorized request, generate_image prepares and submits once
+   using a stable requestKey. Pricing remains provider-defined.
+4. The Agent tool stays active through the request and local persistence. The
+   records page can observe progress without starting another generation.
+5. After success, preview/download the decoded PNG from records or use the Agent's
+   export_image_result and fixed decoder for a workspace file. Records survive
+   reload; ComfyUI server history/queue stays separate.
 6. Timeouts, disconnects and interrupted processes show an uncertain outcome.
    Check provider billing/history before intentionally preparing a new paid job;
    the plugin never automatically resubmits or claims that local stop is cancellation.
 
 ## Agent workflow
 
-Discover actual tools and capabilities, then list image profiles. Prepare the
-exact selected profile/revision/model/prompt. Submit only within user authorization
-and with the prepared request hash. Repeated submit reads the original job.
-Since 0.4.1 both Agent submit entry points retain the invocation until their HTTP
-request and result persistence settle; the request deadline is 90 seconds. The
-short local wait setting does not terminate a newly submitted request. See
-[request-lifetime acceptance](acceptance-image-request-lifetime.md) for the fixed
-slow-response failure and current compatibility limits.
-Get/list are local reads. Read successful result chunks (at most 64 KiB per call),
-verify byte count and SHA-256, then use the Agent's existing authorized file tools
-for workspace output. No private plugin path, API key or signed URL is returned.
+Prefer media_catalog -> generate_image -> image_job -> export_image_result.
+The legacy prepare_image/submit_image/get_image_job/read_image_result tools remain
+compatible. Repeated submission reads the original job. Since 0.4.1 both Agent
+submit entry points retain their invocation until HTTP and persistence settle;
+the request deadline is 90 seconds. A short local wait does not terminate a new
+submission. See [request-lifetime acceptance](acceptance-image-request-lifetime.md)
+for the fixed slow-response failure and compatibility limits.
+Get/list are local reads. The export tool returns a fixed decoder that the Agent
+executes with its authorized tool, checking byte count and SHA-256 before linking
+the original PNG. Do not transcribe Base64 into a file. No private plugin path,
+API key or signed URL is returned.
 Film Factory may register/adopt exported output through its own explicit tools;
 this plugin does not modify works or certify visual quality.
 
@@ -70,7 +71,7 @@ Graceful disposal stops new work and drains already dispatched requests before
 disposing settings. Host-enforced termination can interrupt that drain. If a PNG
 was committed before its final job record, local get/list/read validates it and
 recovers the result without dispatch or mutation. Definite pre-dispatch conflicts
-remain prepared/editable in the UI, not potentially charged unknown outcomes.
+remain prepared/not-submitted, not potentially charged unknown outcomes.
 
 Credentials stay inside the settings service/adapter. HTTP uses pi.net.fetch with
 redirect=error, a bounded timeout, fixed endpoint and no caller-supplied headers.
@@ -83,18 +84,14 @@ network fallback or credential forwarding to a different origin is used.
 Synthetic service-path tests cover prepare→submit→result→restart→read, duplicate
 submission across instances, request identity conflict, unavailable profile/key,
 configuration drift, HTTP failure, timeout/unknown, URL-only replies, invalid or
-oversized PNG, storage errors and disposal. Browser tests cover form selection,
-confirmation, progress, preview/download and retained local records. Existing
-credential, model, ComfyUI and workflow suites remain green. Existing-client
-acceptance uses an isolated profile and localhost synthetic provider.
-
-The user's prior request authorizes one GPT test image after implementation.
-Use the configured GPT service, an explicitly reported model, one low-quality
-1024x1024 PNG and no automatic retries. Record actual outcome and provider limits;
-do not claim a real-provider test passed from mocks alone.
+oversized PNG, storage errors and disposal. Browser tests cover configuration,
+registered Agent generation, progress, preview/download and retained local records.
+Credential, model, ComfyUI and workflow suites cover retained settings behavior.
+Historical installed-client acceptance used an isolated profile and synthetic
+provider; current isolated tests do not prove live provider access or quality.
 
 ## Later phases
 
 Image editing/reference images, multiple outputs, provider URL downloads, remote
-job reconciliation, video/audio execution and budget estimation require their own
-contracts and acceptance. They are not marked ready in this release.
+job reconciliation, video and budget estimation require separate contracts and
+acceptance. MiniMax speech is covered by audio-generation-contract.md.

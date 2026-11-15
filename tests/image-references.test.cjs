@@ -8,7 +8,7 @@ const { png } = require("./image-fixture.cjs");
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 const context = { sessionId: "reference-session", turnId: "reference-turn", mode: "agent" };
 const value = reply => reply.structuredContent;
-async function fixture(t, { binary = true, configureHost = () => {} } = {}) {
+async function fixture(t, { binary = true, responseStatus = 200, configureHost = () => {} } = {}) {
   const root = await fs.mkdtemp(path.join(process.env.PI_SCRATCH_DIR || os.tmpdir(), "image-references-"));
   const data = path.join(root, "private"), workspace = path.join(root, "workspace");
   await fs.mkdir(data); await fs.mkdir(path.join(workspace, "bone-media/references"), { recursive: true });
@@ -17,12 +17,13 @@ async function fixture(t, { binary = true, configureHost = () => {} } = {}) {
   const server = http.createServer(async (req, res) => {
     const chunks = []; for await (const chunk of req) chunks.push(chunk);
     received.push({ url: req.url, headers: req.headers, bytes: Buffer.concat(chunks) });
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(responseStatus, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ data: [{ b64_json: png(3, 3).toString("base64") }] }));
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const baseUrl = `http://127.0.0.1:${server.address().port}/v1`;
   const request = async input => {
+    if (!binary) assert.equal(input.bodyBase64, undefined, "The legacy Host accepts only text request bodies");
     const response = await fetch(input.url, { method: input.method, headers: input.headers,
       body: input.bodyBase64 === undefined ? input.body : Buffer.from(input.bodyBase64, "base64"), redirect: "error" });
     return { status: response.status, bodyText: await response.text(), headers: {} };
@@ -36,7 +37,7 @@ async function fixture(t, { binary = true, configureHost = () => {} } = {}) {
     plugin: { getDataPath: async () => data, getManifest: async () => ({ version: "reference-fixture" }) },
     commands: { register: async () => {}, unregister: async () => {} },
     agent: { registerTool: async tool => tools.set(tool.name, tool), unregisterTool: async name => tools.delete(name) },
-    net: { fetch: request, getCapabilities: async () => ({ binaryRequestBody: binary, maxBinaryBodyBytes: 16 * 1024 * 1024 }) },
+    net: { fetch: request, getCapabilities: async () => ({ fetchRedirectModes: ["follow", "error", "manual"], binaryRequestBody: binary, maxBinaryBodyBytes: 16 * 1024 * 1024 }) },
     workspace: { get: async () => ({ path: currentWorkspace }) },
     fs: { readPreview: async (file, options) => {
       assert.equal(options.workspacePath, currentWorkspace);
@@ -96,15 +97,44 @@ test("reference identity is part of the stable request key", async t => {
   assert.equal(changed.error.code, "GENERATION_REQUEST_CONFLICT"); assert.equal(f.received.length, 1);
 });
 
-test("old hosts keep text generation and reject references before reading or paying", async t => {
-  const f = await fixture(t, { binary: false }), ref = await f.stage("subject");
-  const result = value(await f.call("generate_image", input([ref])));
-  assert.equal(result.error.code, "REFERENCE_UNSUPPORTED"); assert.equal(f.received.length, 0); assert.equal(f.reads.length, 0);
-  const capability = await f.call("get_capabilities", {});
-  assert.equal(capability.operations.find(op => op.id === "image.edit").ready, false);
+test("a text-only Host sends ordered reference images as JSON and preserves existing task identity", async t => {
+  const f = await fixture(t, { binary: false }), first = await f.stage("subject", png(2, 2)), second = await f.stage("style", png(4, 4));
+  const caps = await f.call("get_capabilities", {});
+  const support = caps.operations.find(operation => operation.id === "image.edit");
+  assert.equal(support.ready, true);
+  assert.equal(support.constraints.referenceImages.transport, "json-data-url");
+  assert.equal(support.constraints.referenceImages.requiredBinaryBodyBytes, 0);
+  const reply = await f.call("generate_image", input([first, second]));
+  const job = value(reply).job;
+  assert.equal(job?.state, "succeeded", JSON.stringify(value(reply)));
+  assert.equal(reply.content[1].type, "image"); assert.equal(f.received.length, 1);
+  const sent = f.received[0]; assert.equal(sent.url, "/v1/images/edits");
+  assert.equal(sent.headers["content-type"], "application/json");
+  const body = JSON.parse(sent.bytes);
+  assert.deepEqual(body.images, [png(2, 2), png(4, 4)].map(bytes => ({ image_url: `data:image/png;base64,${bytes.toString("base64")}` })));
+  assert.equal(body.model, "gpt-image-2"); assert.equal(body.n, 1); assert.equal(body.output_format, "png");
+  assert.equal(body.input_fidelity, undefined); assert.equal(body.response_format, undefined);
+  const saved = JSON.parse(await fs.readFile(path.join(f.data, "image-jobs", job.id + ".json"), "utf8"));
+  assert.equal(saved.version, 3); assert.deepEqual(saved.request.referenceImages, [first, second]);
+  assert.ok(!JSON.stringify(saved).includes(body.images[0].image_url));
+  await fs.unlink(path.join(f.workspace, first.path)); await f.reload();
+  assert.equal(value(await f.call("generate_image", input([first, second]))).job.id, job.id);
+  assert.equal(f.received.length, 1);
   const text = value(await f.call("generate_image", { requestKey: "text-only", prompt: "A blue cup" }));
-  assert.equal(text.job.state, "succeeded"); assert.equal(f.received[0].url, "/v1/images/generations");
-  assert.equal(JSON.parse(f.received[0].bytes).prompt, "A blue cup");
+  assert.equal(text.job.state, "succeeded"); assert.equal(f.received[1].url, "/v1/images/generations");
+  assert.equal(JSON.parse(f.received[1].bytes).prompt, "A blue cup");
+});
+
+test("a rejected JSON image edit is not automatically retried with another transport", async t => {
+  for (const status of [400, 503]) await t.test(String(status), async t => {
+    const f = await fixture(t, { binary: false, responseStatus: status }), ref = await f.stage("subject");
+    const result = value(await f.call("generate_image", input([ref])));
+    assert.equal(result.job?.state, status === 503 ? "unknown" : "failed", JSON.stringify(result));
+    assert.equal(f.received.length, 1); assert.equal(f.received[0].url, "/v1/images/edits");
+    assert.equal(f.received[0].headers["content-type"], "application/json");
+    assert.equal(value(await f.call("generate_image", input([ref]))).job.id, result.job.id);
+    assert.equal(f.received.length, 1);
+  });
 });
 
 test("path escape, URLs, malformed hashes, excess count and changed bytes are rejected before dispatch", async t => {
@@ -188,15 +218,15 @@ test("a host workspace race during reference reads is a conflict without provide
 
 test("reference diagnostics agree across Agent and panel without blocking text generation", async t => {
   const scenarios = [
-    { name: "old host", reason: "host-binary-image-input-required", configureHost: host => { delete host.net.getCapabilities; } },
-    { name: "capability query failed", reason: "host-capability-query-failed", configureHost: host => {
+    { name: "capability query missing", reason: "host-redirect-error-required", configureHost: host => { delete host.net.getCapabilities; } },
+    { name: "capability query failed", reason: "host-redirect-error-required", configureHost: host => {
       host.net.getCapabilities = async () => { throw Error("synthetic-capability-private-info"); };
     } },
-    { name: "insufficient body limit", reason: "host-binary-body-limit-too-small", configureHost: host => {
-      host.net.getCapabilities = async () => ({ binaryRequestBody: true, maxBinaryBodyBytes: 8 * 1024 * 1024 });
+    { name: "insufficient body limit", fallback: true, reason: "host-binary-body-limit-too-small", configureHost: host => {
+      host.net.getCapabilities = async () => ({ fetchRedirectModes: ["error"], binaryRequestBody: true, maxBinaryBodyBytes: 8 * 1024 * 1024 });
     } },
-    { name: "invalid body limit", reason: "host-binary-body-limit-invalid", configureHost: host => {
-      host.net.getCapabilities = async () => ({ binaryRequestBody: true, maxBinaryBodyBytes: "16777216" });
+    { name: "invalid body limit", fallback: true, reason: "host-binary-body-limit-invalid", configureHost: host => {
+      host.net.getCapabilities = async () => ({ fetchRedirectModes: ["error"], binaryRequestBody: true, maxBinaryBodyBytes: "16777216" });
     } },
     { name: "scoped image reader missing", reason: "host-image-preview-api-required", configureHost: host => { delete host.fs.readPreview; } },
     { name: "workspace API missing", reason: "host-workspace-api-required", configureHost: host => { delete host.workspace.get; } },
@@ -207,34 +237,50 @@ test("reference diagnostics agree across Agent and panel without blocking text g
     const model = catalog.models[0], caps = await f.call("get_capabilities", {});
     const edit = caps.operations.find(operation => operation.id === "image.edit");
     const panel = await f.panel("aimedia.capabilities");
-    assert.equal(model.ready, true); assert.ok(!model.operations.includes("image.edit"));
-    assert.equal(edit.ready, false); assert.ok(edit.blockedBy.includes(scenario.reason));
-    assert.equal(model.constraints.referenceImages.supported, false);
-    assert.ok(model.constraints.referenceImages.blockedBy.includes(scenario.reason));
-    assert.deepEqual(model.constraints.referenceImages, edit.constraints.referenceImages);
+    assert.equal(model.ready, true);
+    assert.equal(model.operations.includes("image.edit"), Boolean(scenario.fallback));
+    assert.equal(edit.ready, Boolean(scenario.fallback));
+    assert.equal(model.constraints.referenceImages.supported, Boolean(scenario.fallback));
+    const support = model.constraints.referenceImages;
+    assert.ok((scenario.fallback ? support.multipartBlockedBy : support.blockedBy).includes(scenario.reason));
+    if (scenario.fallback) { assert.equal(support.transport, "json-data-url"); assert.deepEqual(support.blockedBy, []); }
+    assert.deepEqual(support, edit.constraints.referenceImages);
     assert.deepEqual(panel.operations.find(operation => operation.id === "image.edit"), edit);
-    assert.equal(value(await f.call("generate_image", input([ref]))).error.code, "REFERENCE_UNSUPPORTED");
-    assert.equal(f.reads.length, 0); assert.equal(f.received.length, 0);
+    const reference = value(await f.call("generate_image", input([ref])));
+    if (scenario.fallback) {
+      assert.equal(reference.job?.state, "succeeded", JSON.stringify(reference));
+      assert.equal(f.received.length, 1); assert.equal(f.received[0].headers["content-type"], "application/json");
+    } else {
+      assert.equal(reference.error.code, "REFERENCE_UNSUPPORTED");
+      assert.equal(f.reads.length, 0); assert.equal(f.received.length, 0);
+    }
+    const beforeText = f.received.length;
     const text = value(await f.call("generate_image", { requestKey: "capability-text", prompt: "A blue cup" }));
-    assert.equal(text.job.state, "succeeded"); assert.equal(f.received[0].url, "/v1/images/generations");
+    assert.equal(text.job.state, "succeeded"); assert.equal(f.received[beforeText].url, "/v1/images/generations");
     assert.ok(!JSON.stringify([caps, catalog, panel]).includes("synthetic-capability-private-info"));
   });
 });
 
-test("reload refreshes reference support after an optional capability-query failure", async t => {
+test("reload can upgrade JSON reference transport to multipart without changing task identity", async t => {
   const f = await fixture(t, { configureHost: host => {
-    host.net.getCapabilities = async () => { throw Object.assign(Error("temporary failure"), { code: "UNAVAILABLE" }); };
+    host.net.getCapabilities = async () => ({ fetchRedirectModes: ["error"] });
   } }), ref = await f.stage("subject");
-  assert.equal(value(await f.call("generate_image", input([ref]))).error.code, "REFERENCE_UNSUPPORTED");
-  f.host.net.getCapabilities = async () => ({ binaryRequestBody: true, maxBinaryBodyBytes: 16 * 1024 * 1024 });
+  const first = value(await f.call("generate_image", input([ref])));
+  assert.equal(first.job?.state, "succeeded", JSON.stringify(first));
+  assert.equal(f.received[0].headers["content-type"], "application/json");
+  f.host.net.getCapabilities = async () => ({ fetchRedirectModes: ["error"], binaryRequestBody: true, maxBinaryBodyBytes: 16 * 1024 * 1024 });
   await f.reload();
   const catalog = value(await f.call("media_catalog", { action: "list", kind: "image" }));
   const support = catalog.models[0].constraints.referenceImages;
   assert.equal(support.supported, true); assert.deepEqual(support.blockedBy, []);
   assert.equal(support.hostMaxBinaryBodyBytes, 16 * 1024 * 1024);
   assert.equal(support.requiredBinaryBodyBytes, 16 * 1024 * 1024);
+  assert.equal(support.transport, "multipart");
   const result = value(await f.call("generate_image", input([ref])));
-  assert.equal(result.job.state, "succeeded"); assert.equal(f.received.length, 1);
+  assert.equal(result.job.id, first.job.id); assert.equal(f.received.length, 1);
+  const next = value(await f.call("generate_image", { ...input([ref]), requestKey: "multipart-after-reload" }));
+  assert.equal(next.job.state, "succeeded"); assert.equal(f.received.length, 2);
+  assert.match(f.received[1].headers["content-type"], /^multipart\/form-data; boundary=/);
 });
 
 test("a workspace switch after the first ordered read stops before reading another reference", async t => {
@@ -276,4 +322,17 @@ test("reference jobs retain project labels across restart and workspace changes"
   assert.deepEqual((await f.panel("aimedia.records.get", selected)).project, expected);
   assert.equal(value(await f.call("generate_image", input([ref]))).job.id, result.job.id);
   assert.equal(f.received.length, 1);
+});
+
+test("reference compatibility requires advertised error-redirect support", async t => {
+  for (const modes of [undefined, [], ["follow"]]) {
+    const f = await fixture(t, { binary: false, configureHost: host => {
+      host.net.getCapabilities = async () => ({ fetchRedirectModes: modes });
+    } }), ref = await f.stage("subject");
+    const reply = value(await f.call("generate_image", input([ref])));
+    assert.equal(reply.error?.code, "REFERENCE_UNSUPPORTED", JSON.stringify(reply));
+    assert.equal(f.reads.length, 0); assert.equal(f.received.length, 0);
+    const edit = (await f.call("get_capabilities", {})).operations.find(operation => operation.id === "image.edit");
+    assert.equal(edit.ready, false); assert.ok(edit.blockedBy.includes("host-redirect-error-required"));
+  }
 });

@@ -36,6 +36,16 @@ and host manifest fields against source. Record any metadata-only differences.
 No installed plugin, client, real credential, task history or paid provider is
 changed by publication validation.
 
+## Version 0.6.2
+
+The plugin removes the binary-only gate by using OpenAI's documented JSON image
+edit format with ordered data URLs on text-only Hosts. Binary-capable Hosts keep
+multipart. This patch updates only the media plugin and does not require a Host
+binary-upload extension for the JSON path. Scoped reads, hashes, request identity,
+records, credentials and sixteen tools remain compatible. Selection happens before
+submission; provider rejection or uncertainty never triggers another format retry.
+Supplier JSON-edit support remains a separate real-provider verification.
+
 ## Version 0.6.1
 
 Version 0.6.0 installed and ran correctly but retained a fixed 0.5.4 panel badge

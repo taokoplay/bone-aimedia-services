@@ -1,4 +1,4 @@
-# Configuration and generation contract — 0.6.1
+# Configuration and generation contract — 0.6.2
 
 ## Runtime and storage
 
@@ -321,11 +321,13 @@ Five image tools are added: prepare_image (medium, local write), submit_image
 (low, local reads). The panel uses aimedia.image.prepare/submit/get/list/read.
 See gpt-image-usage-plan.md for the exact request, state and export workflow.
 Capability contractVersion remains 1 with additive generation constraints;
-generationImplemented=true covers GPT text-to-image, reference-image edits on a
-capable Host, and MiniMax speech. `image.edit` requires Host binary HTTP/scoped
-image reads; absent support returns `host-binary-image-input-required`. Other
-operations remain configuration-only. Profile readiness requires a supported
-configured model, enabled service and restored credential, not a network probe.
+generationImplemented=true covers GPT text-to-image, scoped reference edits and
+MiniMax speech. `image.edit` requires Host HTTP, workspace and scoped image-read
+APIs. Text-only Hosts use official JSON data-URL edits; supported binary Hosts
+retain multipart. Discovery reports the selected transport and sanitized optional
+multipart diagnostics. Provider support is separate from local readiness. Other
+operations remain configuration-only; configured models and restored credentials
+still determine profile readiness without a network probe.
 See gpt-image-reference-contract.md for staged paths, limits and version-3 jobs.
 credentialStorageStatus remains backend/support/last-access observation.
 

@@ -24,7 +24,7 @@ const VIEW_ID = "settings";
 function error(code, message) { return Object.assign(new Error(message), { code }); }
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
 let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, records = null;
-let version = "0.6.1";
+let version = "0.6.2";
 let registered = [];
 let registrationErrors = [];
 function safeFailure(failure) {
@@ -50,7 +50,7 @@ function safeFailure(failure) {
     RESULT_INVALID: "媒体文件校验未通过，未作为成功结果保存。",
     RESULT_UNAVAILABLE: "当前没有可读取的媒体结果。",
     CREDENTIAL_REQUIRED: "请先保存所选服务的 API Key。",
-    REFERENCE_UNSUPPORTED: "参考图当前不可用；请查看 media_catalog 的 referenceImages.blockedBy，核对宿主二进制上传与图片读取支持。文生图仍可使用。",
+    REFERENCE_UNSUPPORTED: "参考图当前不可用；请查看 media_catalog 的 referenceImages.blockedBy，核对宿主 HTTP 与受限图片读取支持。文生图仍可使用。",
     REFERENCE_INVALID: "参考图格式、大小或内容校验未通过，未提交生成请求。",
     REFERENCE_CHANGED: "参考图内容与指定哈希不一致，未提交生成请求。",
   };

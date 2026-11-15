@@ -3,12 +3,12 @@
 独立的 PI-Desktop 媒体服务插件，以 Agent 对话驱动已配置模型生图和 MiniMax 语音合成；页面用于配置服务和查看生成记录。
 
 - 插件 ID：`bone.aimedia.services`
-- 当前版本：`0.6.1`
+- 当前版本：`0.6.2`
 - 源码目录：`bone-aimedia-services`
 - 许可证：[AGPL-3.0-only](LICENSE)
 
 **在对话中说明服务、模型和画面，或明确朗读文本与音色，Agent 可生成一张 PNG 或一段 MP3，并写入统一生成记录。**
-Environmental sound effects, music, video and ComfyUI execution remain unavailable. Reference-image generation requires the Host binary-upload capability described below.
+Environmental sound effects, music, video and ComfyUI execution remain unavailable. Reference images support existing Host text HTTP through JSON data URLs.
 
 ## 界面与功能
 
@@ -44,7 +44,7 @@ Environmental sound effects, music, video and ComfyUI execution remain unavailab
 
 | 服务 | 本版支持 | 明确未实现 |
 |---|---|---|
-| OpenAI images | Encrypted configuration, model discovery, GPT text generation and reference-image edits on a capable Host; PNG preview/export | Masks, multiple outputs, URL result downloads |
+| OpenAI images | Encrypted configuration, model discovery, GPT text generation and scoped reference-image edits through JSON or supported multipart; PNG preview/export | Masks, multiple outputs, URL result downloads |
 | 小米 MiMo | 配音模型、音色、格式；`GET /models` | 实际语音合成、克隆或音色设计 |
 | MiniMax | 模型／音色目录；已配置 speech 系列语音朗读、MP3 试听与下载 | 环境音效、音乐、图像与视频生成 |
 | ComfyUI | 系统与节点发现、模型目录、远端工作流列表与详情；本地 API 工作流校验 | 上传输入、提交任务、取消远端任务和下载生成结果 |
@@ -129,14 +129,14 @@ The Agent stages user-designated PNG/JPEG/WebP files under `bone-media/reference
 and supplies their paths and SHA-256 values as `referenceImages`. Limits are
 16 files, 4 MiB per file and 12 MiB combined. The panel provides configuration and
 generation records; image and speech creation use Agent tools.
-This feature explicitly requires an updated Host advertising binary HTTP requests;
-installing this plugin alone does not add it to PI-Desktop 0.21.0. Older Hosts
-continue to support the existing text/speech workflow and reject references before
-submission. See the [reference-image contract](docs/gpt-image-reference-contract.md).
-Reference support diagnostics are shared by model discovery, Agent capabilities
-and the panel. `referenceImages.blockedBy` explains missing APIs, insufficient
-upload limits or an optional Host query failure. A failed capability query does
-not disable text/speech tools; plugin reload refreshes the local snapshot.
+Reference edits use the official JSON `images[].image_url` data-URL format on
+Hosts with text-only HTTP, including PI-Desktop 0.21.0. Hosts advertising binary
+upload with a sufficient limit retain multipart. HTTP, workspace discovery,
+scoped image reads and advertised `error` redirects remain required. The selected gateway must accept the chosen
+edit format; a rejection never triggers an automatic format-switch retry.
+Discovery and the panel share `referenceImages.transport`, `blockedBy`, optional
+`multipartBlockedBy` diagnostics and request bounds. Plugin reload refreshes this
+local snapshot. See the [reference-image contract](docs/gpt-image-reference-contract.md).
 
 语音流程：查询音频模型 → `audio_voices` 选择明确音色 → `generate_audio(operation="speech")` → `audio_job` → `export_audio_result`。
 朗读文本最多 1000 字符，语速 0.5–2，输出 MP3；不设置新的默认音色。音频和图片共用最多两个活动生成名额。
@@ -162,7 +162,7 @@ Agent 调用导出工具，并在授权工作区运行其固定解码命令，�
 
 ## 安装与权限
 
-Install `dist/bone.aimedia.services-0.6.1.piplug` in plugin management, or load the development directory and review the requested permissions.
+Install `dist/bone.aimedia.services-0.6.2.piplug` in plugin management, or load the development directory and review the requested permissions.
 插件启动即注册工具与技能，不需要先打开页面。已有有效配置后即可在 Agent 模式调用。
 不保证在已运行的同一轮即时增加工具；新会话和下一轮的发现以安装客户端验收为准。
 当前安装的 PI-Desktop 0.21.0 已验证 Agent 模式下的新会话／下一轮工具发现。

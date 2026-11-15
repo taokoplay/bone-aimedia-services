@@ -24,7 +24,7 @@ const VIEW_ID = "settings";
 function error(code, message) { return Object.assign(new Error(message), { code }); }
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
 let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, records = null;
-let version = "0.6.0";
+let version = "0.6.1";
 let registered = [];
 let registrationErrors = [];
 function safeFailure(failure) {

@@ -14,9 +14,15 @@
   const providerDisplay = { openai: t('openai'), minimax: 'MiniMax', xiaomi: t('xiaomi'), comfyui: 'ComfyUI', dreamina: t('dreaminaDisplay'), libtv: 'LibTV', workflow: t('workflows') };
   const categoryForProvider = provider => provider === 'dreamina' ? 'dreamina' : provider === 'libtv' ? 'libtv' : provider === 'comfyui' ? 'connections' : 'models';
   const s = { data: null, screen: 'config', tab: 'models', addDialog: false, dialogReturnFocus: null, resourceProfile: null, draft: null, defaults: null, defaultsDirty: false, dirty: false, busy: false, notice: null, locked: false,
-    epoch: 0, editVersion: 0, importTicket: 0, importing: false, alive: true, loadError: null, legacyBackend: false, query: '', modelFilter: 'all', listFilter: 'all', credential: { action: 'preserve' }, probe: null };
+    epoch: 0, editVersion: 0, importTicket: 0, importing: false, alive: true, version: null, loadError: null, legacyBackend: false, query: '', modelFilter: 'all', listFilter: 'all', credential: { action: 'preserve' }, probe: null };
   const root = document.getElementById('app');
-  const invoke = A.createPanelInvoke(() => window.pluginBridge);
+  const invoke = A.createPanelInvoke(() => window.pluginBridge, version => {
+    if (!s.alive) return;
+    s.version = version;
+    const badge = root.querySelector('.title-version');
+    if (badge) { badge.textContent = version || ''; badge.hidden = !version; }
+    document.title = [A.i18n.scope('shell')('title'), version].filter(Boolean).join(' ');
+  });
   const C = { state: s, get tab() { return tabs.find(tab => tab.id === s.tab); }, render, touch, message, probe, canProbe, openResources, importRemote };
   const remote = A.remoteController({ state: s, invoke, render, importRemote });
   const records = A.recordsPageController({ state: s, invoke });
@@ -488,7 +494,7 @@
   }
   function render() {
     if (!s.alive) return;
-    const header = h('header', {}, h('div', { class: 'brand' }, h('h1', {}, t('title'), h('span', { class: 'title-version' }, '0.5.4'))),
+    const header = h('header', {}, h('div', { class: 'brand' }, h('h1', {}, t('title'), h('span', { class: 'title-version', hidden: !s.version }, s.version || ''))),
       h('p', { class: 'capability' }, t('subtitle')));
     const nav = navView(screens, s.screen, 'main', t('navigation'), 'main-panel', id => navigate(s.tab, id, `main-${id}`));
     const main = h('div', { id: 'main-panel', role: 'tabpanel', 'aria-labelledby': `main-${s.screen}` });

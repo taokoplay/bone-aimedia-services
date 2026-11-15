@@ -110,3 +110,76 @@ test("legacy reads return saved config without enabling mutations; retry discove
   assert.equal(invoke.isReadOnly(), false);
   assert.equal((await invoke("aimedia.save", saveInput(1))).revision, 2);
 });
+
+test("runtime version notifications reuse the status handshake and refresh on reset", async t => {
+  const f = await fixture(t), calls = [], versions = [];
+  let version = "0.6.1";
+  const invoke = f.createInvoke(() => ({ invoke: async (channel, payload) => {
+    calls.push(channel);
+    const result = await f.plugin.onPanelInvoke(channel, payload === undefined ? undefined : JSON.parse(JSON.stringify(payload)));
+    return channel === "aimedia.status" ? { ...result, version } : result;
+  } }), value => versions.push(value));
+  await Promise.all([invoke("aimedia.get"), invoke("aimedia.capabilities")]);
+  assert.deepEqual(versions, ["0.6.1"]);
+  assert.equal(calls.filter(channel => channel === "aimedia.status").length, 1);
+  await invoke("aimedia.get");
+  assert.deepEqual(versions, ["0.6.1"]);
+  invoke.reset();
+  assert.deepEqual(versions, ["0.6.1", null]);
+  version = "0.7.0-rc.1+build.42";
+  await invoke("aimedia.get");
+  assert.deepEqual(versions, ["0.6.1", null, version]);
+  assert.equal(calls.filter(channel => channel === "aimedia.status").length, 2);
+});
+
+test("missing or unsafe runtime versions remain absent without blocking configuration", async t => {
+  const f = await fixture(t);
+  for (const version of [undefined, null, 6, {}, "", " 0.6.1 ", "0.6.1<script>", "1".repeat(65)]) {
+    const versions = [];
+    const invoke = f.createInvoke(() => ({ invoke: async (channel, payload) => {
+      const result = await f.plugin.onPanelInvoke(channel, payload === undefined ? undefined : JSON.parse(JSON.stringify(payload)));
+      return channel === "aimedia.status" ? { ...result, version } : result;
+    } }), value => versions.push(value));
+    assert.equal((await invoke("aimedia.get")).revision, 0);
+    assert.deepEqual(versions, []);
+    assert.equal(invoke.isReadOnly(), false);
+  }
+});
+
+test("late status replies cannot restore an obsolete version after reset", async t => {
+  const f = await fixture(t), versions = [];
+  let resolveOld, started;
+  const requested = new Promise(resolve => { started = resolve; });
+  let first = true;
+  const invoke = f.createInvoke(() => ({ invoke: async (channel, payload) => {
+    if (channel !== "aimedia.status") return f.plugin.onPanelInvoke(channel, payload === undefined ? undefined : JSON.parse(JSON.stringify(payload)));
+    if (!first) return { panelProtocol: 1, version: "0.6.1" };
+    first = false;
+    return new Promise(resolve => { resolveOld = resolve; started(); });
+  } }), value => versions.push(value));
+  const old = invoke("aimedia.get");
+  await requested;
+  invoke.reset();
+  await invoke("aimedia.get");
+  resolveOld({ panelProtocol: 1, version: "0.5.4" });
+  await old;
+  assert.deepEqual(versions, ["0.6.1"]);
+});
+
+test("legacy version metadata is available read-only and failed handshakes stay retryable", async t => {
+  const f = await fixture(t), versions = [];
+  let unavailable = false;
+  const invoke = f.createInvoke(() => ({ invoke: async channel => {
+    if (unavailable) throw Error("Host unavailable");
+    return channel === "aimedia.status" ? { version: "0.2.1" } : { revision: 0 };
+  } }), value => versions.push(value));
+  assert.equal((await invoke("aimedia.get")).revision, 0);
+  assert.equal(invoke.isReadOnly(), true);
+  assert.deepEqual(versions, ["0.2.1"]);
+  invoke.reset(); unavailable = true;
+  await assert.rejects(invoke("aimedia.get"), /Host unavailable/);
+  assert.deepEqual(versions, ["0.2.1", null]);
+  unavailable = false;
+  assert.equal((await invoke("aimedia.get")).revision, 0);
+  assert.deepEqual(versions, ["0.2.1", null, "0.2.1"]);
+});

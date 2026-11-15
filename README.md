@@ -3,7 +3,7 @@
 独立的 PI-Desktop 媒体服务插件，以 Agent 对话驱动已配置模型生图和 MiniMax 语音合成；页面用于配置服务和查看生成记录。
 
 - 插件 ID：`bone.aimedia.services`
-- 当前版本：`0.6.0`
+- 当前版本：`0.6.1`
 - 源码目录：`bone-aimedia-services`
 - 许可证：[AGPL-3.0-only](LICENSE)
 
@@ -162,7 +162,7 @@ Agent 调用导出工具，并在授权工作区运行其固定解码命令，�
 
 ## 安装与权限
 
-在插件管理中安装 `dist/bone.aimedia.services-0.6.0.piplug` 或加载开发目录，并审核所需权限。
+Install `dist/bone.aimedia.services-0.6.1.piplug` in plugin management, or load the development directory and review the requested permissions.
 插件启动即注册工具与技能，不需要先打开页面。已有有效配置后即可在 Agent 模式调用。
 不保证在已运行的同一轮即时增加工具；新会话和下一轮的发现以安装客户端验收为准。
 当前安装的 PI-Desktop 0.21.0 已验证 Agent 模式下的新会话／下一轮工具发现。
@@ -183,6 +183,11 @@ Agent 可通过原图导出与 Markdown 图片链接完成用户可见展示，�
 
 更新插件前保存当前编辑。重载会从加密文件恢复已保存密钥，无需再次填写。
 不需要为了测试中断其他运行任务。
+The panel badge and localized window title show the running plugin's version from
+`aimedia.status`, including after an explicit configuration reload. Missing or
+invalid version metadata leaves the badge hidden and the base title visible.
+Version updates preserve active editor contents and focus. Version 0.6.0 already
+ran the new code even though its panel incorrectly displayed a fixed `0.5.4`.
 PI-Desktop 0.21.0 可能保留升级前的插件页面；若仍显示旧导航，先保存编辑并等任务结束，再禁用／启用本插件以重建页面，无需更新客户端。
 
 ## 开发与测试
@@ -196,6 +201,7 @@ python3 tests/settings.browser.py
 python3 tests/generation.browser.py
 python3 tests/records.browser.py
 python3 tests/audio.browser.py
+python3 tests/i18n.browser.py
 ```
 
 浏览器检查要求 Python Playwright 与 Chrome。测试自动启动真实插件入口、临时存储和

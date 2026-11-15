@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.2
+
+- Support reference-image edits on text-only Hosts through the official JSON
+  `images[].image_url` data-URL format, retaining multipart on capable Hosts.
+- Keep scoped image reads, original-byte hashes, ordered request identity and
+  existing task formats; missing binary fields select JSON with error redirects.
+- Select a transport before submission and never retry another format after a
+  provider rejection or unknown result. Preserve text/speech and all sixteen tools.
+- Correct capability diagnostics and Agent guidance; binary upload is optional.
+
 ## 0.6.1
 
 - Show the running plugin version in the panel badge and localized window title

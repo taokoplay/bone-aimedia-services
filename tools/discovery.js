@@ -58,7 +58,7 @@ function capabilities(snapshot, version, toolReachable = true, referenceSupport 
     remoteInspection: { provider: "comfyui", transport: "panel-explicit-read-only", resources: ["model-folders", "models", "workflows", "workflow", "history", "queue"],
       taskOwnership: "server-wide-unknown", generationImplemented: false },
     observation: "Provider discovery verifies only catalog/node access; actual media review belongs to Agent and requires observation evidence.",
-    limitations: ["GPT text-to-image and MiniMax text-to-speech are implemented. Reference-image edits require host binary HTTP and scoped image reads. Masks, environmental sound effects, music, video and workflow execution remain unavailable.",
+    limitations: ["GPT text-to-image, scoped reference-image edits and MiniMax text-to-speech are implemented. References use JSON data URLs on text-only Hosts or multipart when binary upload is advertised. Provider edit compatibility remains unverified. Masks, environmental sound effects, music, video and workflow execution remain unavailable.",
       "Prepared jobs are local. Submission can incur provider charges; uncertain outcomes are never automatically retried.",
       "URL-only image replies remain unavailable. Typed image results are bounded; original-file export requires the declared workspace scope and an Agent-authorized decoder.",
       "Dreamina CLI and LibTV MCP sign-in remain external; this plugin does not execute them.",

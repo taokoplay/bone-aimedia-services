@@ -1,6 +1,6 @@
 ---
 name: ai-media-services
-description: "Use configured Bone AI media models from Agent conversations: GPT 生图, 文生图, 参考图, GPT Image reference-image edits, MiniMax 语音合成, 文本朗读, generate images or speech. Discover models and voices, submit one authorized task, query unified local records and export PNG/MP3 originals. Reference images require host binary upload support. Environmental sound effects and music are not implemented."
+description: "Use configured Bone AI media models from Agent conversations: GPT 生图, 文生图, 参考图, GPT Image reference-image edits, MiniMax 语音合成, 文本朗读, generate images or speech. Discover models and voices, submit one authorized task, query unified local records and export PNG/MP3 originals. Reference images support JSON-compatible Host HTTP and scoped file reads. Environmental sound effects and music are not implemented."
 ---
 
 # Agent-driven Bone AI media services
@@ -36,13 +36,17 @@ required beyond installing/enabling this plugin with the applicable host grants.
 
 For a user-authorized reference-image request, check the chosen image model's
 `constraints.referenceImages.supported` and `image.edit` operation before staging
-or submitting. This feature explicitly requires a Host advertising binary HTTP
-request bodies; installing the plugin alone does not upgrade an older Host.
-If unavailable, report `constraints.referenceImages.blockedBy` and the advertised
-Host body limit, without dropping references or silently generating from text.
-Optional capability-query failure leaves text/speech tools available. The local
-snapshot refreshes on plugin reload; never use a generation retry as a capability
-probe.
+or submitting. Reference edits use the official JSON data-URL format through the
+existing Host text HTTP API when binary upload is unavailable, including older
+PI-Desktop clients. A Host with advertised binary upload and a sufficient body
+limit keeps the multipart path. `constraints.referenceImages.transport` reports
+the selection. Missing binary fields do not disable JSON references. A successful
+capability query must still advertise `error` redirects for either edit format.
+If unavailable, report `constraints.referenceImages.blockedBy` without dropping
+the images or silently generating from text. The selected provider must support
+that `/images/edits` format. Never automatically retry with a different format
+after any provider rejection or uncertain result. Plugin reload refreshes the
+local transport snapshot; a generation retry is not a capability probe.
 
 Use the Agent's authorized file tools to stage the user-designated original image
 files under workspace `bone-media/references/`, preserving originals and existing
@@ -53,9 +57,10 @@ Base64 into a tool call or read files through the plugin's private storage.
 
 Allow at most 16 PNG/JPEG/WebP files, 4 MiB each and 12 MiB combined. Keep staged
 files until submission settles. The plugin verifies bytes and workspace identity
-before uploading binary multipart files to `/images/edits`, using the same model,
-prompt, output parameters and requestKey rules. A changed reference is changed
-intent: never replace files/hashes under an already submitted request key.
+before submitting to `/images/edits`, using JSON `images[].image_url` data URLs
+or supported binary multipart files with the same model, prompt, output parameters
+and requestKey rules. A changed reference is changed intent: never replace
+files/hashes under an already submitted request key.
 Do not send input_fidelity for GPT Image 2. Masks and reference URLs are unsupported.
 See ../../docs/gpt-image-reference-contract.md for compatibility and limitations.
 

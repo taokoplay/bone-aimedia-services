@@ -79,10 +79,12 @@ requests when possible. Existing unknown jobs are not rewritten or retried.
 
 Optional ordered `referenceImages` in generate_image/prepare_image contains
 workspace-relative paths and SHA-256 values for staged PNG/JPEG/WebP files under
-`bone-media/references/`. It requires Host binary HTTP capability plus scoped
-image reads. Missing support rejects references before submission, preserving
-the text-only path. References and workspace identity are revalidated before
-binary multipart `/images/edits`; hashes enter request identity and records.
+`bone-media/references/`. Host HTTP, workspace discovery and scoped image reads
+are required. Reference transport is official JSON data URLs on text-only Hosts
+or multipart when binary upload and a sufficient body limit are advertised.
+Missing required APIs reject references before submission. The plugin revalidates
+images and workspace identity, preserves request hashes, and never retries with
+another format after a rejection or uncertain result.
 The plugin accepts up to 16 files, 4 MiB each and 12 MiB combined, without masks.
 See [reference-image input and acceptance](gpt-image-reference-contract.md).
 

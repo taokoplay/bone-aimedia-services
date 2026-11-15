@@ -1,175 +1,155 @@
 # GPT Image reference-image contract
 
-This additive Agent interface extends the text-only image contract. It does not
-change existing text generation, credentials, output formats, model selection or
-paid-request idempotency. The panel provides configuration and records; creation
-uses Agent tools.
+This additive Agent interface extends the text-only image contract. Existing
+text generation, credentials, model selection, output formats and paid-request
+identity remain compatible. Creation uses Agent tools; the panel provides
+configuration and generation records.
 
-## Capability matching
+## Protocol and transport selection
 
-The official OpenAI SDK documents image edits through `POST /images/edits`, with
-ordered PNG, JPEG or WebP files. GPT Image 2 must omit `input_fidelity`. The plugin
-also omits that optional parameter for other configured GPT models, leaving their
-provider defaults intact. It never substitutes a different configured model.
+Official OpenAI image edits support JSON and multipart requests at
+`POST /images/edits`. JSON requests use ordered `images` entries containing
+`image_url`, which accepts a Base64 data URL. This documented format can travel
+through the existing Host text HTTP API without a binary Host extension.
+
+Sources:
+
+- [Image edit API reference](https://developers.openai.com/api/reference/resources/images/methods/edit)
+- [OpenAI API changelog](https://developers.openai.com/api/docs/changelog): the
+  February 9, 2026 entry adds `application/json` image-edit requests.
 
 | Layer | Implemented behavior |
 | --- | --- |
-| Model | Configured OpenAI-compatible `gpt-image-*` IDs, including the configured GPT Image 2/2.5/2.6 aliases |
+| Models | Configured OpenAI-compatible `gpt-image-*` IDs; no silent model substitution |
 | Text generation | Existing JSON `POST <baseUrl>/images/generations` |
-| Reference generation | Multipart `POST <baseUrl>/images/edits`, repeated `image[]` parts |
-| Host transport | `net.getCapabilities()` must advertise `binaryRequestBody: true` and `maxBinaryBodyBytes >= 16777216`; requests use `bodyBase64` |
-| Local files | Host `fs.readPreview(path, {workspacePath})`, restricted to `bone-media/references/**` |
-| Result | Existing single PNG result, verification, records and original export |
+| References on text-only Hosts | JSON `POST <baseUrl>/images/edits` with ordered internal data URLs |
+| References on binary-capable Hosts | Existing repeated multipart `image[]` files when the Host advertises binary bodies and at least 16777216 decoded bytes |
+| File access | Host `fs.readPreview(path, {workspacePath})`, scoped to `bone-media/references/**` |
+| Results | Existing verified single PNG, records, preview and original export |
 
-Provider support is not inferred from a configured name or a successful model
-catalog query. An OpenAI-compatible gateway must actually implement the edit
-endpoint. Real supplier compatibility and billing remain separately unverified.
+Both edit formats share model, prompt, `n=1`, size, quality and
+`output_format=png`. `input_fidelity` and `response_format` are omitted. Generic
+indexed filenames are used for multipart; neither format sends local file paths.
+A JSON data URL is an internal provider payload, never an Agent tool argument.
+Remote reference URLs, File API uploads, masks, streaming and multiple outputs
+remain outside this interface.
 
-OpenAI's model-level limits can be larger than this plugin's limits. The plugin
-accepts 1–16 reference files, at most 4 MiB each and 12 MiB combined, with the
-complete multipart body bounded to 16 MiB. PNG references use the existing PNG
-validator, including its 4096-pixel edge limit; JPEG/WebP input checks validate
-signatures/container structure, not a complete codec decode or artistic quality.
-Masks, streaming, multiple output images, input-fidelity controls, image URLs and
-remote result downloads are outside this interface.
+Transport is selected locally before submission, from the optional Host snapshot.
+Missing binary fields or an invalid/small binary limit selects JSON. A sufficient
+advertised binary capability retains multipart. HTTP, workspace discovery and
+scoped image reads remain mandatory. Both paths require a successful capability
+query advertising the `error` redirect policy before any reference is uploaded.
+There is no direct Node network/filesystem fallback or permission bypass.
 
-Official protocol source inspected for this implementation:
-[OpenAI Python SDK image-edit parameter definition](https://github.com/openai/openai-python/blob/main/src/openai/types/image_edit_params.py).
+The selected gateway must actually implement the chosen edit format. Readiness
+or a configured model name does not prove provider access or entitlement.
+A provider rejection, timeout or uncertain response never triggers an automatic
+retry with another transport, another model or another request key.
 
-## Agent input
+## Bounds
 
-`generate_image` and the legacy `prepare_image` accept an optional ordered
-`referenceImages` array. Every item has exactly:
+The plugin accepts 1–16 PNG/JPEG/WebP files, at most 4 MiB each and 12 MiB combined.
+PNG checks include CRC/decompression validation and the existing 4096-pixel edge
+limit. JPEG/WebP checks validate signatures and container structure, not full
+codec decoding or artistic quality.
 
-- `path`: a workspace-relative PNG/JPEG/WebP path below `bone-media/references/`.
-- `sha256`: the lowercase 64-character SHA-256 of the original file bytes.
+Multipart is bounded to 16 MiB including fields and boundaries. JSON is bounded
+to 16 MiB plus 256 KiB, allowing Base64 expansion of 12 MiB of image data and
+bounded prompt/field overhead. `maxRequestBodyBytes` reports the selected bound.
+Neither bound claims a supplier's account-specific limit.
 
-The Agent uses its own authorized file tools to stage the user-designated files
-and calculate hashes. It preserves originals and does not overwrite an existing
-staged file. Image bytes are never transcribed into tool arguments. Keep the
-staged files until submission finishes. The plugin reads them through the Host;
-it does not use Node filesystem access or a shell to bypass workspace permissions.
-It does not delete staged user assets.
+## Agent input and file validation
 
-The file order is part of intent. Prompt, model, output parameters and every
-reference path/hash enter the Agent input hash. Changing any of them under the
-same `requestKey` produces `GENERATION_REQUEST_CONFLICT`. Intentional new images
-require the user's authorization and a new request key.
+`generate_image` and legacy `prepare_image` accept optional ordered
+`referenceImages`. Each item contains exactly:
 
-## Validation and dispatch
+- `path`: a workspace-relative PNG/JPEG/WebP under `bone-media/references/`.
+- `sha256`: a lowercase 64-character SHA-256 of the original file bytes.
 
-New preparation checks syntax, host support, workspace identity, image type,
-size, canonical Base64 and the supplied content hashes. The workspace fingerprint
-is recorded with the prepared request. Repeated legacy preparation matches the
-stored immutable request before reading staging files, so removed files do not
-block access to an existing task. Before dispatch the files are read again and
-verified against both the hashes and the captured workspace. Cancellation and
-service/configuration checks run across these asynchronous reads.
+The Agent stages only user-designated originals with its authorized tools,
+preserving originals and existing files. It computes hashes without transcribing
+image Base64. Staged files remain until submission settles; the plugin does not
+delete them.
 
-The Host pins each preview read to the captured workspace. The plugin rechecks
-after every read and once after image validation, so it does not repeat a
-workspace query immediately before each already-pinned read. A switch after the
-first image stops the sequence before any later image is read.
+New preparation checks input syntax, required Host APIs, workspace identity,
+image type/size/canonical encoding and hashes. The workspace fingerprint enters
+the prepared request. Repeated preparation looks up immutable task intent before
+rereading files, so removed staging files do not block an existing task.
 
-- Invalid arguments are rejected before file access or submission.
-- `REFERENCE_UNSUPPORTED` reports an insufficient Host; it does not silently drop
-  the references or generate from text alone.
-- `REFERENCE_INVALID` reports an invalid/oversized image or multipart body.
-- `REFERENCE_CHANGED` reports bytes that no longer match the supplied hash.
-- `CONFLICT` reports a different workspace from the prepared reference source.
-- Permission errors remain permission errors; no direct network/filesystem
-  fallback is attempted.
+Immediately before dispatch, original bytes and workspace identity are validated
+again. Host reads use the captured workspace pin; post-read and final checks,
+configuration lifetime and cancellation checks remain enforced. A workspace
+switch after the first image stops before later images are read. These checks
+do not promise atomic identity through the eventual external HTTP operation.
 
-Validation failures before HTTP are not submitted or charged by the plugin.
-Failure after a durable claim is recorded as failed/not-submitted, and the claim
-still prevents automatic resubmission. HTTP uncertainty retains the existing
-unknown/charging-unknown semantics. An error is never evidence of a refund.
+- `REFERENCE_UNSUPPORTED`: a required Host API is unavailable; no references are
+  silently dropped and no text-only generation is substituted.
+- `REFERENCE_INVALID`: invalid or excessive image/request-body content.
+- `REFERENCE_CHANGED`: original bytes no longer match the supplied hash.
+- `CONFLICT`: workspace identity differs from the prepared reference source.
+- Host permission failures remain permission failures.
 
-The provider receives original binary files with generic indexed filenames,
-without local paths. `bodyBase64` is an internal Host transport encoding, not a
-provider request field. The multipart form preserves UTF-8 prompt text and ordered
-image bytes, with `n=1` and `output_format=png`.
+Validation before HTTP does not submit a provider request. A failure after a
+durable claim remains failed/not-submitted, preserving the claim. HTTP
+uncertainty retains unknown/charging-unknown behavior; no refund is inferred.
 
-Host workspace pinning and repeated checks do not promise atomic workspace
-identity across the eventual external HTTP request. The bytes must still match
-the user-specified hashes; the plugin makes no stronger filesystem guarantee than
-the Host API supplies.
+## Identity and compatibility
 
-## Persistence and compatibility
+Prompt, model, output parameters and ordered reference paths/hashes enter request
+identity. A changed intent under the same `requestKey` returns
+`GENERATION_REQUEST_CONFLICT`. Transport selection is not semantic image intent;
+plugin reload or a new Host cannot turn the same completed/unknown task into a
+fresh submission.
 
-Only reference-image tasks use private image-record version 3. They store ordered
-path/hash descriptors and a workspace fingerprint, without reference Base64 or
-copies of the source images. Agent source metadata remains session-scoped. Old
-version-1/2 jobs stay readable and are not migrated or rewritten. Text-only jobs
-retain their exact version-1/2 request/hash format; audio records are unchanged.
-A successful existing request can be read/retried after restart even when its
-staged reference files have been removed, without another provider call.
+Only reference tasks use private image-record version 3. Records keep path/hash
+descriptors and the workspace fingerprint, without image copies, Base64 or data
+URLs. Existing version-1/2 image jobs and audio formats stay unchanged. Existing
+reference jobs remain readable and resumable across this patch without migration.
+A successful task remains available after staging files are removed.
 
-Older plugin builds do not understand version-3 records. Downgrading after creating
-reference jobs is not supported; retain the compatible build and do not delete
-records to work around a downgrade. An older Host can still run this plugin's
-text/speech workflow and read already stored results, but cannot submit reference
-jobs. The plugin requires an updated Host advertising binary transport for this
-new feature; installing the plugin alone does not add that Host capability.
+Downgrading to a plugin predating reference-record support remains unsupported.
+This patch removes the binary-only requirement introduced in 0.6.0: text-only
+Hosts can now submit JSON references using their existing scoped APIs.
 
-`media_catalog` includes `image.edit` only when Host reference input is available.
-Both discovery tools and the panel expose the same `constraints.referenceImages`
-status: `supported`, `blockedBy`, `requiredBinaryBodyBytes` and
-`hostMaxBinaryBodyBytes` (null if unknown), alongside the plugin input bounds.
-`get_capabilities` also includes these reasons in the `image.edit` operation's
-`blockedBy`. The reasons describe Host support:
+Discovery, Agent capabilities and panel share `constraints.referenceImages`:
 
-| Reason | Meaning |
-| --- | --- |
-| `host-capability-query-failed` | The optional local Host query failed; no raw error is exposed |
-| `host-binary-image-input-required` | The Host did not advertise binary request bodies |
-| `host-binary-body-limit-invalid` | The Host did not advertise a positive safe-integer body limit |
-| `host-binary-body-limit-too-small` | The advertised limit is below the required 16 MiB |
-| `host-http-api-required` | The Host HTTP API is absent |
-| `host-workspace-api-required` | The workspace API is absent |
-| `host-image-preview-api-required` | The scoped preview reader is absent |
+- `supported` and `blockedBy`: availability of required Host APIs.
+- `transport`: `json-data-url` or `multipart` for the selected path.
+- `multipartBlockedBy`: sanitized optional binary-query/limit diagnostics.
+- `requiredBinaryBodyBytes`: zero for JSON, 16777216 for multipart.
+- `hostMaxBinaryBodyBytes`: the advertised positive safe integer, or null.
+- `maxRequestBodyBytes`: the selected serialization bound.
 
-Optional capability-query failures disable reference input without aborting
-plugin initialization or disabling existing text/speech tools. The status is a
-local snapshot refreshed on plugin reload, without background retries, provider
-probes or automatic generation. Runtime workspace availability and permission
-grants remain enforced at each actual read/request.
-Credentials and configured models continue to determine local profile readiness.
-No response claims supplier entitlement or a live-generation success.
+Missing HTTP/workspace/preview methods remain blocking. Missing or failed
+capability discovery, or absent `error` redirect support, returns
+`host-redirect-error-required` before image reads/HTTP. Missing binary fields and
+binary-limit reasons are multipart diagnostics rather than JSON blockers. No raw
+Host error is exposed. Reload refreshes the snapshot without provider probes.
 
 ## Acceptance scenario: IMAGE-REFERENCES
 
-Preconditions: dedicated request worktrees, isolated temporary data/workspace,
-updated Host binary transport, synthetic credentials and a localhost image
-provider. No user's running instance or production provider is used.
+Use isolated plugin data/workspaces, synthetic credentials and loopback HTTP.
 
-1. Stage two reference PNGs and obtain their SHA-256 values.
-2. Discover `image.edit` through the actual plugin entry's Agent tool registry.
-3. Generate once with both references. Decode the real HTTP multipart form and
-   verify exact ordered bytes, model, prompt and output fields; return a typed PNG.
-4. Restart the plugin, remove one staged file and repeat the same request key.
-   Read the original result with no additional provider request. Repeat through
-   legacy `prepare_image` with its original request ID; changed intent must still
-   conflict without reading missing staging files.
-5. Change a reference hash under that key and require an intent conflict.
-6. Modify a staged file after legacy preparation, or switch workspaces before or
-   during the Host preview read. Require failed/not-submitted with the matching
-   content/conflict error and zero HTTP requests.
-7. Cancel a held reference read. Require TOOL_ABORTED with no prepared task or
-   provider call.
-8. Repeat on a Host lacking binary capability: reference requests fail before file
-   reads/network while the original text generation still succeeds.
-9. Check PNG/JPEG/WebP input, malformed Base64, MIME mismatch, byte-count/size
-   limits, path traversal/URLs and the complete multipart size bound.
-10. Fail the optional Host capability query or remove individual Host APIs.
-    Require matching, sanitized reasons from catalog, Agent discovery and panel;
-    reference requests must stop before image reads/HTTP while text generation
-    still succeeds on hosts with HTTP support. Restore capability support and
-    reload; the original reference request can then generate once.
+1. Stage ordered PNGs and discover `image.edit` in the real plugin tool registry.
+2. On a text-only Host, send JSON with two exact data URLs and verify decoded
+   bytes, order, model/prompt/output fields and the typed PNG result.
+3. On a binary-capable Host, verify the existing multipart body and byte order.
+4. Reload, remove a staging file and repeat the same request. Recover the same
+   task with no new HTTP submission, including across a JSON-to-multipart change.
+5. Reverse references or change a hash under the same key and require a conflict.
+6. Modify bytes after preparation, change workspace during a read, or cancel a
+   held read. Require the existing refusal and zero provider requests.
+7. Advertise error redirects with missing/invalid/insufficient binary fields.
+   JSON remains available; discovery surfaces agree on the selected transport.
+8. Remove required APIs, fail capability discovery or omit error redirects.
+   References stop before reads/HTTP; existing text behavior remains compatible.
+9. Return HTTP 400 or 503 for JSON edits. Keep the original failed/unknown task,
+   with exactly one request and no automatic multipart retry.
+10. Cover PNG/JPEG/WebP, request-body limits, malformed hashes, path traversal and
+    canonical encoding. A capable Host still uses its original multipart path.
 
-Executable coverage: `tests/image-references.test.cjs` (real plugin entry,
-filesystem fixtures and localhost HTTP), `tests/image-reference-schema.test.cjs`
-(binary/format contracts), plus the existing image, Agent, storage, audio and
-plugin-entry suites. Host permission, binary transport and worker-boundary
-coverage belongs to the accompanying PI-Desktop request branch. These local
-checks do not establish real-provider quality or installed-client acceptance.
+Executable coverage: `tests/image-references.test.cjs`,
+`tests/image-reference-schema.test.cjs`, and existing Agent/image/storage/audio
+and plugin-entry suites. An isolated actual-Host integration separately verifies
+text-body compatibility. Local tests do not establish real-provider entitlement,
+editing quality or installed-client upgrade completion.

@@ -43,7 +43,7 @@ test("plugin exposes discovery, image and audio contracts with honest per-operat
   assert.equal(caps.operations.find(op => op.id === "image.generate").execution, "native");
   assert.equal(caps.operations.find(op => op.id === "audio.speech").execution, "native");
   const edit = caps.operations.find(op => op.id === "image.edit");
-  assert.equal(edit.execution, "native"); assert.ok(edit.blockedBy.includes("host-binary-image-input-required"));
+  assert.equal(edit.execution, "native"); assert.ok(edit.blockedBy.includes("host-image-preview-api-required"));
   assert.ok(caps.operations.filter(op => !["image.generate", "image.edit", "audio.speech"].includes(op.id)).every(op => op.execution === "configuration-only"));
   assert.deepEqual((await call("list_profiles")).profiles, []);
   assert.deepEqual((await call("list_workflows")).workflows, []);

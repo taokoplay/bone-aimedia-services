@@ -8,17 +8,26 @@
   for (const code of ['WORKFLOW_INVALID', 'WORKFLOW_TOO_LARGE', 'WORKFLOW_NOT_FOUND', 'RESOURCE_LIST_STALE', 'RESOURCE_UNSUPPORTED', 'AUTHENTICATION_REQUIRED', 'CREDENTIAL_REQUIRED', 'ENDPOINT_NOT_FOUND', 'TIMEOUT', 'NETWORK_ERROR', 'REDIRECT_DISALLOWED', 'INVALID_JSON', 'INVALID_RESPONSE', 'RESPONSE_TOO_LARGE', 'HTTP_ERROR', 'HOST_PERMISSION_DENIED', 'NETWORK_PERMISSION_DENIED', 'NET_PERMISSION_DENIED', 'CAPABILITY_DENIED', 'FORBIDDEN', 'APPROVAL_REQUIRED']) codes.add(code);
   const legacyReads = new Set(['aimedia.get', 'aimedia.status', 'aimedia.capabilities', 'aimedia.resourceSnapshot']);
   const failure = code => Object.assign(new Error(code), { code });
-  window.AIMedia.createPanelInvoke = getBridge => {
-    let ready, readOnly = false;
+  window.AIMedia.createPanelInvoke = (getBridge, onVersion = () => {}) => {
+    let ready, readOnly = false, version = null;
+    const publishVersion = value => {
+      const next = typeof value === 'string' && value.length <= 64 && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(value) ? value : null;
+      if (next !== version) { version = next; onVersion(next); }
+    };
     const invoke = async (channel, payload) => {
       const bridge = getBridge();
-      if (typeof bridge?.invoke !== 'function') throw failure('NO_BRIDGE');
+      if (typeof bridge?.invoke !== 'function') { publishVersion(null); throw failure('NO_BRIDGE'); }
       if (!channel.startsWith('aimedia.')) return bridge.invoke(channel, payload);
       // A newer page can outlive the resident entry. Preserve local reads on
       // older entries, but never downgrade writes or requests with side effects.
-      if (!ready) ready = Promise.resolve().then(() => bridge.invoke('aimedia.status'))
-        .catch(error => { ready = undefined; throw error; });
-      const status = await ready;
+      if (!ready) {
+        const pending = Promise.resolve().then(() => bridge.invoke('aimedia.status'))
+          .catch(error => { if (ready === pending) { ready = undefined; publishVersion(null); } throw error; });
+        ready = pending;
+      }
+      const pending = ready;
+      const status = await pending;
+      if (ready === pending) publishVersion(status?.version);
       readOnly = status?.panelProtocol !== 1;
       if (readOnly) {
         if (!legacyReads.has(channel)) throw failure('PLUGIN_RELOAD_REQUIRED');
@@ -34,7 +43,7 @@
       throw failure(response.error.code);
     };
     invoke.isReadOnly = () => readOnly;
-    invoke.reset = () => { ready = undefined; };
+    invoke.reset = () => { ready = undefined; publishVersion(null); };
     return invoke;
   };
 })();

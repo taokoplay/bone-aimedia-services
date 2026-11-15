@@ -117,8 +117,16 @@ class LocaleBrowser(unittest.TestCase):
         self.inject_locale(locale)
         self.page.goto(self.url)
         expect(self.button(c['add'])).to_be_enabled()
+        version = self.rpc('aimedia.status')['version']
+        expect(self.page.locator('.title-version')).to_have_text(version)
+        title = 'Bone AI Media Services' if locale == 'en' else 'Bone AI 媒体服务'
+        expect(self.page).to_have_title(f'{title} {version}')
+        self.page.reload()
+        expect(self.button(c['add'])).to_be_enabled()
+        expect(self.page.locator('.title-version')).to_have_text(version)
+        expect(self.page).to_have_title(f'{title} {version}')
         expect(self.page.locator('html')).to_have_attribute('lang', locale)
-        self.assertEqual(self.locale_calls, 1)
+        self.assertEqual(self.locale_calls, 2)
         self.assertEqual(self.page.evaluate('AIMedia.kinds.image'), 'Image' if locale == 'en' else '图片')
         self.button(c['add']).click()
         dialog = self.page.get_by_role('dialog')
@@ -213,7 +221,7 @@ class LocaleBrowser(unittest.TestCase):
             dialog.get_by_role('button', name=c['close'], exact=True).click()
         self.assertEqual(self.rpc('fixture.metrics')['network'], network, 'Viewing records must not generate again')
         self.assertIsNone(self.page.evaluate('window.__injected'))
-        self.assertEqual(self.locale_calls, 1)
+        self.assertEqual(self.locale_calls, 2)
 
     def test_english_user_flow(self):
         self.flow('en')
@@ -226,7 +234,7 @@ class LocaleBrowser(unittest.TestCase):
         self.page.goto(self.url)
         expect(self.button('Add service')).to_be_enabled()
         expect(self.page.locator('html')).to_have_attribute('lang', 'en')
-        expect(self.page).to_have_title('Bone AI Media Services 0.5.4')
+        expect(self.page).to_have_title('Bone AI Media Services ' + self.rpc('aimedia.status')['version'])
 
     def test_old_host_unknown_channel_retains_chinese(self):
         self.page.goto(self.url)
@@ -247,6 +255,7 @@ class LocaleBrowser(unittest.TestCase):
         self.page.goto(self.url, wait_until='domcontentloaded')
         self.page.wait_for_function('window.AIMedia !== undefined')
         expect(self.page.locator('#app')).to_be_hidden()
+        expect(self.page).to_have_title('Bone AI 媒体服务')
         self.assertIsNone(self.page.evaluate('AIMedia.kinds'))
         self.assertEqual(len(held), 1)
         held[0].fulfill(json={'result': 'en'})
@@ -258,6 +267,64 @@ class LocaleBrowser(unittest.TestCase):
         self.page.route('**/settings-profile.js', lambda route: route.abort())
         self.page.goto(self.url)
         expect(self.page.get_by_role('alert')).to_have_text('The settings page could not load. Reload the plugin panel to try again.')
+        expect(self.page).to_have_title('Bone AI Media Services')
+
+    def test_version_metadata_changes_and_unavailable_metadata(self):
+        self.inject_locale('en')
+        metadata = {'version': '7.8.9'}
+        def status(route):
+            if route.request.post_data_json.get('channel') != 'aimedia.status':
+                route.fallback()
+                return
+            response = route.fetch()
+            body = response.json()
+            body['result'].pop('version', None)
+            body['result'].update(metadata)
+            route.fulfill(response=response, json=body)
+        self.page.route('**/bridge', status)
+        self.page.goto(self.url)
+        expect(self.button('Add service')).to_be_enabled()
+        expect(self.page.locator('.title-version')).to_have_text('7.8.9')
+        expect(self.page).to_have_title('Bone AI Media Services 7.8.9')
+        metadata['version'] = '7.8.10'
+        self.button('Reload').click()
+        expect(self.page.locator('.title-version')).to_have_text('7.8.10')
+        expect(self.page).to_have_title('Bone AI Media Services 7.8.10')
+        for invalid in [{}, {'version': None}, {'version': 6}, {'version': '<img src=x>'}]:
+            with self.subTest(metadata=invalid):
+                metadata.clear()
+                metadata.update(invalid)
+                self.page.reload()
+                expect(self.button('Add service')).to_be_enabled()
+                expect(self.page.locator('.title-version')).to_be_hidden()
+                expect(self.page).to_have_title('Bone AI Media Services')
+
+    def test_version_notification_preserves_editor_and_ignores_disposal(self):
+        self.inject_locale('en')
+        def capture(route):
+            response = route.fetch()
+            source = response.text() + """
+              const create = AIMedia.createPanelInvoke;
+              AIMedia.createPanelInvoke = (bridge, onVersion) => {
+                window.__notifyVersion = onVersion;
+                return create(bridge, onVersion);
+              };"""
+            route.fulfill(response=response, body=source)
+        self.page.route('**/settings-bridge.js', capture)
+        self.page.goto(self.url)
+        self.add(COPY['en']['openai'], COPY['en'])
+        field = self.page.get_by_role('textbox', name='Configuration name', exact=True)
+        field.fill('Unsaved version-display regression')
+        field.evaluate('(element) => { window.__editorField = element; }')
+        self.page.evaluate("window.__notifyVersion('9.8.7')")
+        expect(self.page).to_have_title('Bone AI Media Services 9.8.7')
+        expect(field).to_have_value('Unsaved version-display regression')
+        expect(field).to_be_focused()
+        self.assertTrue(field.evaluate('(element) => element === window.__editorField'))
+        before = self.page.locator('#app').inner_html()
+        self.page.evaluate("window.dispatchEvent(new Event('pagehide')); window.__notifyVersion('9.8.8')")
+        expect(self.page).to_have_title('Bone AI Media Services 9.8.7')
+        self.assertEqual(self.page.locator('#app').inner_html(), before)
 
 
 if __name__ == '__main__':

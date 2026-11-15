@@ -36,6 +36,14 @@ and host manifest fields against source. Record any metadata-only differences.
 No installed plugin, client, real credential, task history or paid provider is
 changed by publication validation.
 
+## Version 0.6.1
+
+Version 0.6.0 installed and ran correctly but retained a fixed 0.5.4 panel badge
+and window title. The patch uses the running entry's existing status metadata
+for both localized displays, with a hidden badge and base title when unavailable.
+Bridge and real-browser regressions cover versions, reloads and editor/disposal
+safety. No generation, storage, tool, permission or Host capability change is made.
+
 ## Version 0.6.0
 
 The release preserves version 0.5.4's project labels, Agent-only configuration

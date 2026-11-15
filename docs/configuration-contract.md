@@ -1,4 +1,4 @@
-# Configuration and generation contract — 0.6.0
+# Configuration and generation contract — 0.6.1
 
 ## Runtime and storage
 
@@ -74,6 +74,18 @@ so an upgraded entry becomes editable without reopening the page. Responses are
 safe codes cross this response; there is no raw error text, input or key.
 The wrapper dispatches only existing aimedia channels and rejects recursion.
 Legacy direct channels below retain their existing success/error contracts.
+
+The same status handshake supplies `version` to the visible badge and localized
+window title. A bounded version string is displayed as text; absent or invalid
+metadata leaves the badge hidden and the base title visible. Explicit reread
+clears the previous value and discovers the running entry again. Obsolete
+handshake replies cannot restore an older value after reset. Version callbacks
+update only title/badge nodes, preserve the editor and focus, and do nothing
+after page disposal. There are no extra status probes or provider requests.
+Acceptance: `tests/panel-bridge.test.cjs` covers handshake reuse, metadata guards,
+legacy reads, reset races and recovery; `tests/i18n.browser.py` covers both locale
+user paths, page reloads, changed/unavailable metadata, editor preservation and
+disposal against the real entry with an isolated synthetic Host.
 
 Electron's IPC/contextBridge exception path does not preserve custom Error.code.
 The page therefore classifies only validated response errors, never parses error

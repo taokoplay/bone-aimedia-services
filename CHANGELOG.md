@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1
+
+- Show the running plugin version in the panel badge and localized window title
+  using the existing status handshake, replacing the stale fixed 0.5.4 label.
+- Hide unavailable or invalid version metadata, discard obsolete handshake
+  replies, and preserve active editor contents and focus during version updates.
+- Add bridge and browser regressions for both locales, reloads and disposal.
+
 ## 0.6.0
 
 - Add ordered GPT reference-image input to Agent and legacy preparation tools,

@@ -15,7 +15,7 @@
       allJobs: () => [...jobs.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)),
       listState: () => ({ loading, error }), clearPreview: preview.clear, loadResult: preview.load, previewView: preview.view, previewKey: preview.key });
     function remember(job) {
-      if (!job || !['image', 'audio'].includes(job.kind) || typeof job.id !== 'string' || !job.id.startsWith(job.kind === 'audio' ? 'aud-' : 'img-') || !Number.isInteger(job.revision) || !job.request || typeof job.createdAt !== 'string') throw invalid();
+      if (!job || !['image', 'audio', 'workflow'].includes(job.kind) || typeof job.id !== 'string' || !job.id.startsWith(job.kind === 'audio' ? 'aud-' : job.kind === 'workflow' ? 'wf-' : 'img-') || !Number.isInteger(job.revision) || !job.request || typeof job.createdAt !== 'string') throw invalid();
       const old = jobs.get(job.id);
       if (old && old.revision > job.revision) return old;
       const next = { ...job, request: { ...old?.request, ...job.request } };

@@ -183,11 +183,20 @@ Existing get_capabilities/list_profiles/list_workflows and prepare_image/
 submit_image/get_image_job/list_image_jobs/read_image_result remain available for
 old callers. Prefer the simplified image/audio tools in new Agent workflows.
 
-ComfyUI browsing is read-only; remote tasks may belong to others. Masks, video,
-environmental sound effects, music and remote reconciliation are not implemented.
+For ComfyUI, list_workflows returns local and synchronized remote API workflows
+without returning their full bodies. Use only an enabled workflow with an explicit
+image/video/audio output rule. Call generate_workflow_media with the same workflow
+ID and stable requestKey when retrying. Use workflow_job to inspect the original
+prompt ID or verified local result. Never submit a second prompt for an unknown
+job. Results are downloaded only through host binary-response support, then checked
+for the selected media signature and SHA-256 before entering Generation Records.
+Canvas workflows remain preview-only. ComfyUI queue/history browsing may include
+other clients and never establishes task ownership. Masks, environmental sound
+effects, music and remote result URLs remain unsupported.
 Film Factory may register/adopt an exported workspace result with its own explicit
 revision and authorization rules; generation never adopts or approves media.
-See ../../docs/agent-image-contract.md and ../../docs/audio-generation-contract.md.
+See ../../docs/agent-image-contract.md, ../../docs/audio-generation-contract.md
+and ../../docs/comfyui-workflow-generation-contract.md.
 If an upgraded 0.21.0 client retains the old plugin page, save edits and wait for
 generation to finish, then disable/re-enable this plugin to destroy the cached
 view. Closing the tab or reloading only the plugin backend may reuse the old page.

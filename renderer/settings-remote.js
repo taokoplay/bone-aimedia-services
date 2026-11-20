@@ -161,7 +161,7 @@
         if (detail) panel.append(section(t('workflowDetails'), h('div', { class: 'card' }, note(`${r.path} · ${detail.format === 'api' ? t('apiFormat') : detail.format === 'canvas' ? t('canvasFormat') : t('unknownFormat')}${detail.fresh ? '' : t('staleSuffix')}`),
           detail.format !== 'api' && note(t('canvasHelp')),
           h('details', { class: 'definition' }, h('summary', {}, t('viewDefinition')), h('pre', { class: 'code' }, JSON.stringify(detail.definition, null, 2))),
-          h('div', { class: 'block' }, button(t('importDraft'), () => C.importRemote(detail.definition, r.path, r.profileId), { disabled: blocked() || !detail.fresh || detail.format !== 'api' || !detail.importable || s.data.workflows.length >= 64 }),
+          h('div', { class: 'block' }, button(t('importDraft'), () => C.importRemote(detail.definition, r.path, r.profileId, detail.contentSha256), { disabled: blocked() || !detail.fresh || detail.format !== 'api' || !detail.importable || s.data.workflows.length >= 64 }),
             note(t('draftHelp'))))));
       }
       view.append(panel); return view;
@@ -255,7 +255,7 @@
               r.path = item.path; delete r.results.workflow;
               await snapshotRequest('aimedia.readResourceWorkflow', { path: item.path });
               const detail = r.results.workflow;
-              if (s.draft === d && r === viewState && r.tab === 'workflows' && detail?.fresh && detail.params.path === item.path && detail.importable && detail.format === 'api') C.importRemote(detail.definition, item.path, d.id);
+              if (s.draft === d && r === viewState && r.tab === 'workflows' && detail?.fresh && detail.params.path === item.path && detail.importable && detail.format === 'api') C.importRemote(detail.definition, item.path, d.id, detail.contentSha256);
             }, { class: 'quiet', disabled: blocked() || !fresh('workflows') })))
             : [h('div', { class: 'empty-text' }, pending ? t('readingWorkflows') : workflows ? t('noWorkflows') : t('syncWorkflowsHelp'))]));
         }

@@ -26,7 +26,7 @@
   function mediaIcon(kind = 'image') {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     for (const [key, value] of Object.entries({ width: '20', height: '20', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' })) svg.setAttribute(key, value);
-    svg.innerHTML = kind === 'audio' ? '<path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/>' : '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>';
+    svg.innerHTML = kind === 'audio' ? '<path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/>' : kind === 'video' ? '<rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 9 4-2v10l-4-2"/>' : '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>';
     return svg;
   }
   A.recordsController = ({ state: s, disabled, allJobs, getJob, refresh, listState, clearPreview, loadResult, previewView, previewKey }) => {
@@ -38,6 +38,7 @@
     const showing = id => live() && s.screen === 'records' && selectedId === id && Boolean(dialog?.open);
     const selected = () => allJobs().find(job => job.id === selectedId);
     function createRow(job) {
+      const mediaKind = job.kind === 'workflow' ? job.request.kind : job.kind;
       const channel = h('span', { class: 'record-value record-channel-value' });
       const model = h('span', { class: 'record-value record-model-value' });
       const status = h('span');
@@ -45,9 +46,9 @@
       const project = h('span', { class: 'record-project-tag' });
       const action = button(t('details'), event => { void open(job.id, event.currentTarget); }, { class: 'record-detail-button', 'aria-label': t('viewTask', { p1: job.id }) });
       const cell = (label, content, className) => h('div', { class: `record-cell ${className}`, role: 'cell' }, h('span', { class: 'record-mobile-label', 'aria-hidden': 'true' }, label), content);
-      const node = h('div', { class: 'record-row', role: 'row', 'data-record-job': job.id, 'data-record-kind': job.kind, [job.kind === 'audio' ? 'data-audio-job' : 'data-image-job']: job.id },
-        h('div', { class: 'record-task', role: 'cell' }, h('span', { class: 'record-image-icon', 'aria-hidden': 'true' }, mediaIcon(job.kind)),
-          h('div', { class: 'record-task-copy' }, h('strong', {}, job.kind === 'audio' ? t('speech') : t('imageGeneration')), project)),
+      const node = h('div', { class: 'record-row', role: 'row', 'data-record-job': job.id, 'data-record-kind': mediaKind, [mediaKind === 'audio' ? 'data-audio-job' : mediaKind === 'video' ? 'data-video-job' : 'data-image-job']: job.id },
+        h('div', { class: 'record-task', role: 'cell' }, h('span', { class: 'record-image-icon', 'aria-hidden': 'true' }, mediaIcon(mediaKind)),
+          h('div', { class: 'record-task-copy' }, h('strong', {}, mediaKind === 'audio' ? t('speech') : mediaKind === 'video' ? t('video') : t('imageGeneration')), project)),
         h('div', { class: 'record-cell record-source', role: 'cell' }, channel, model),
         cell(t('status'), status, 'record-state'), cell(t('createdAt'), time, 'record-time'),
         h('div', { class: 'record-action', role: 'cell' }, action));
@@ -104,8 +105,8 @@
         visible.forEach((job, index) => {
           let row = rows.get(job.id);
           if (!row) { row = createRow(job); rows.set(job.id, row); }
-          text(row.channel, job.profileName); row.channel.title = job.profileName || '';
-          text(row.model, job.request.modelId); row.model.title = job.request.modelId || '';
+          text(row.channel, job.kind === 'workflow' ? job.request.workflowName : job.profileName); row.channel.title = row.channel.textContent;
+          text(row.model, job.kind === 'workflow' ? `ComfyUI · ${job.request.kind}` : job.request.modelId); row.model.title = row.model.textContent;
           const projectName = job.project?.status === 'project' && typeof job.project.name === 'string' ? job.project.name : job.project?.status === 'none' ? t('noProject') : t('projectUnknown');
           text(row.project, projectName);
           row.project.title = projectName;

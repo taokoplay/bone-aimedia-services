@@ -351,3 +351,21 @@ checks with `node --test tests/*.test.cjs` and browser user paths with
 `python3 tests/settings.browser.py`. The latter starts its own real-plugin bridge
 and cleans up on exit. Native host permission prompts and real-provider success
 require separate explicit acceptance and are not inferred from these tests.
+
+## ComfyUI workflow execution
+
+Standalone workflows may carry additive `origin`, `remote`, `executable` and
+`outputs` fields. Existing records without these fields remain local-compatible
+configuration and continue to load. A remote import stores the profile ID,
+relative path, definition SHA-256 and synchronization time. The definition is
+copied into the local workflow record before execution.
+
+`outputs` contains one or more `{kind,nodeId,field,index}` selectors. The field
+is `images`, `videos` or `audio` according to the workflow kind. The workflow
+engine replaces only declared binding inputs, submits one `/prompt`, polls the
+same prompt ID and downloads selected files through the host binary response
+contract. It validates the result before adding a private `wf-` job record.
+
+Workflow jobs are independent from server-wide `/queue` and `/history` browsing.
+The records page merges their local state with image and audio records. Unknown,
+result-pending and canceled outcomes never trigger an automatic new submission.

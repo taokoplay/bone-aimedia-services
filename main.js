@@ -19,12 +19,15 @@ const { createAudioResultExporter } = require("./lib/audio-result-export.js");
 const { createGenerationRecords } = require("./lib/generation-records.js");
 const { createImageReferenceReader } = require("./lib/image-reference-reader.js");
 const { createProjectCapture } = require("./lib/generation-project.js");
+const { createMediaResultExporter } = require("./lib/media-result-export.js");
+const { createComfyWorkflowGeneration } = require("./lib/comfy-generation.js");
+const { createWorkflowMediaTools } = require("./tools/workflow-media.js");
 const COMMAND_ID = "bone.aimedia.services.open";
 const VIEW_ID = "settings";
 function error(code, message) { return Object.assign(new Error(message), { code }); }
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
-let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, records = null;
-let version = "0.6.2";
+let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, workflowMedia = null, workflowExporter = null, records = null;
+let version = "0.7.0";
 let registered = [];
 let registrationErrors = [];
 function safeFailure(failure) {
@@ -53,6 +56,10 @@ function safeFailure(failure) {
     REFERENCE_UNSUPPORTED: "参考图当前不可用；请查看 media_catalog 的 referenceImages.blockedBy，核对宿主 HTTP 与受限图片读取支持。文生图仍可使用。",
     REFERENCE_INVALID: "参考图格式、大小或内容校验未通过，未提交生成请求。",
     REFERENCE_CHANGED: "参考图内容与指定哈希不一致，未提交生成请求。",
+    WORKFLOW_INVALID: "工作流未通过执行校验，请检查 API JSON、输出规则和绑定输入。",
+    WORKFLOW_NOT_FOUND: "指定的 ComfyUI 工作流不存在或尚未同步。",
+    WORKFLOW_CANCELED: "ComfyUI 工作流已从等待队列移除，远程结果仍需核对。",
+    BINARY_RESPONSE_UNSUPPORTED: "当前宿主不支持受限二进制响应，无法安全下载 ComfyUI 结果。",
   };
   if (!Object.hasOwn(messages, failure?.code) && resourceErrorDetails(failure).code === failure?.code) {
     return error(failure.code, "资源读取未完成，请检查具体错误后重试。");
@@ -90,12 +97,29 @@ async function agentAccess(method, payload, ctx) {
   if (!current) throw error("DISPOSED", "Agent image service is not loaded.");
   return current[method](payload, ctx);
 }
-const tools = [...createDiscoveryTools({ read: () => access("read"), getVersion: () => version, getReferenceSupport: () => images?.referenceSupport }), ...createImageTools({ access: (method, input, ctx) => imageAccess(method, input, ctx ?? null) }), ...createAgentImageTools({ access: agentAccess }), ...createAgentAudioTools({ access: agentAudioAccess })];
+async function workflowAccess(method, payload, ctx) {
+  const current = workflowMedia;
+  if (!current) throw error("DISPOSED", "ComfyUI workflow service is not loaded.");
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw error("INVALID_ARGUMENT", "Workflow action is required.");
+  try {
+    if (method === "generate") return current.generate(payload, ctx);
+    if (method === "query") {
+      if (payload.action === "list") return { ok: true, ...(await current.list()) };
+      if (payload.action === "result") return { ok: true, ...(await current.readResult(payload)) };
+      if (payload.action === "reconcile") return { ok: true, job: await current.reconcile(payload) };
+      return { ok: true, job: await current.get(payload) };
+    }
+    if (method === "cancel") return { ok: true, job: await current.cancel(payload) };
+    if (method === "exportResult") return workflowExporter.exportResult(payload, ctx);
+    throw error("INVALID_ARGUMENT", "Unknown ComfyUI workflow action.");
+  } catch (failure) { throw safeFailure(failure); }
+}
+const tools = [...createDiscoveryTools({ read: () => access("read"), getVersion: () => version, getReferenceSupport: () => images?.referenceSupport }), ...createImageTools({ access: (method, input, ctx) => imageAccess(method, input, ctx ?? null) }), ...createAgentImageTools({ access: agentAccess }), ...createAgentAudioTools({ access: agentAudioAccess }), ...createWorkflowMediaTools({ access: workflowAccess })];
 async function clearRuntime() {
-  const old = settings, oldImages = images, oldAgent = agentImages, oldAudio = audio, oldAgentAudio = agentAudio;
-  settings = null; images = null; agentImages = null; audio = null; agentAudio = null; records = null;
+  const old = settings, oldImages = images, oldAgent = agentImages, oldAudio = audio, oldAgentAudio = agentAudio, oldWorkflow = workflowMedia;
+  settings = null; images = null; agentImages = null; audio = null; agentAudio = null; workflowMedia = null; workflowExporter = null; records = null;
   oldAgent?.dispose(); oldAgentAudio?.dispose();
-  try { await Promise.all([oldImages?.dispose(), oldAudio?.dispose()]); } finally { await old?.dispose(); }
+  try { await Promise.all([oldImages?.dispose(), oldAudio?.dispose(), oldWorkflow?.dispose()]); } finally { await old?.dispose(); }
   if (typeof pi.agent?.unregisterTool === "function") {
     for (const name of registered) {
       try { await pi.agent.unregisterTool(name); } catch { registrationErrors.push(`无法注销工具：${name}`); }
@@ -117,9 +141,11 @@ async function onLoad() {
   const references = await createImageReferenceReader({ host: pi });
   images = createImageGeneration({ getDataPath: () => dataPath, settings, request, budget, references, captureProject });
   audio = createAudioGeneration({ getDataPath: () => dataPath, settings, request, budget, captureProject });
+  workflowMedia = createComfyWorkflowGeneration({ getDataPath: () => dataPath, settings, request, getCapabilities: () => pi.net?.getCapabilities?.(), captureProject });
+  workflowExporter = createMediaResultExporter({ host: pi, kind: "workflow", readResult: async jobId => { const job = await workflowMedia.get({ jobId }); return workflowMedia.readResult({ jobId, expectedSha256: job.result.sha256 }); } });
   agentImages = createAgentImageService({ settings, images, exporter: createImageResultExporter({ host: pi, readResult: images.resultBytes }) });
   agentAudio = createAgentAudioService({ settings, audio, exporter: createAudioResultExporter({ host: pi, readResult: audio.resultBytes }) });
-  records = createGenerationRecords({ images, audio });
+  records = createGenerationRecords({ images, audio, workflows: workflowMedia });
   await pi.commands.register({ id: COMMAND_ID, title: "Bone AI 媒体服务: 打开配置", keywords: ["bone", "aimedia", "媒体", "图片", "视频", "配音"],
     run: async () => pi.ui.revealView({ viewId: VIEW_ID }) });
   if (typeof pi.agent?.registerTool !== "function") registrationErrors.push("宿主未提供 Agent 工具注册能力。");

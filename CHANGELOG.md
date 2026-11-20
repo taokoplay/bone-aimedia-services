@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- Add ComfyUI API workflow execution for image, video and audio outputs.
+- Synchronize remote workflow definitions into local snapshots with source hashes and explicit output rules.
+- Submit once, retain the ComfyUI prompt ID, reconcile the same task after reload, and download results through the host bounded binary response contract.
+- Validate output paths, media signatures and SHA-256 before adding independent `wf-` jobs to unified Generation Records.
+- Add `generate_workflow_media`, `workflow_job`, `cancel_workflow_job` and `export_workflow_result` while preserving the existing sixteen tools and image/audio records.
+- Keep canvas workflows preview-only, server-wide history/queue separate, and unknown outcomes free of automatic resubmission.
+
 ## 0.6.2
 
 - Support reference-image edits on text-only Hosts through the official JSON

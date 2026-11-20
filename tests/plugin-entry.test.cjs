@@ -26,11 +26,11 @@ after(async () => { await plugin.onUnload(); delete globalThis.pi; await fs.rm(d
 test("plugin exposes discovery, image and audio contracts with honest per-operation readiness", async () => {
   const manifest = JSON.parse(await fs.readFile(path.join(__dirname, "../manifest.json"), "utf8"));
   assert.equal(manifest.id, "bone.aimedia.services");
-  assert.deepEqual([...tools.keys()], ["get_capabilities", "list_profiles", "list_workflows", "prepare_image", "submit_image", "get_image_job", "list_image_jobs", "read_image_result", "media_catalog", "generate_image", "image_job", "export_image_result", "generate_audio", "audio_job", "export_audio_result", "audio_voices"]);
-  assert.equal(manifest.contributes.agentTools.length, 16);
+  assert.deepEqual([...tools.keys()], ["get_capabilities", "list_profiles", "list_workflows", "prepare_image", "submit_image", "get_image_job", "list_image_jobs", "read_image_result", "media_catalog", "generate_image", "image_job", "export_image_result", "generate_audio", "audio_job", "export_audio_result", "audio_voices", "generate_workflow_media", "workflow_job", "cancel_workflow_job", "export_workflow_result"]);
+  assert.equal(manifest.contributes.agentTools.length, 20);
   for (const descriptor of manifest.contributes.agentTools) {
     const tool = tools.get(descriptor.name); assert.deepEqual(tool.schema, descriptor.schema);
-    assert.equal(tool.description, descriptor.description); assert.equal(tool.risk, ["submit_image", "generate_image", "generate_audio"].includes(descriptor.name) ? "high" : ["prepare_image", "export_image_result", "export_audio_result", "audio_voices"].includes(descriptor.name) ? "medium" : "low");
+    assert.equal(tool.description, descriptor.description); assert.equal(tool.risk, ["submit_image", "generate_image", "generate_audio", "generate_workflow_media", "cancel_workflow_job"].includes(descriptor.name) ? "high" : ["prepare_image", "export_image_result", "export_audio_result", "audio_voices", "export_workflow_result"].includes(descriptor.name) ? "medium" : "low");
     assert.deepEqual(tool.planSafeActions, descriptor.planSafeActions);
   }
   const caps = await call("get_capabilities");
@@ -44,7 +44,7 @@ test("plugin exposes discovery, image and audio contracts with honest per-operat
   assert.equal(caps.operations.find(op => op.id === "audio.speech").execution, "native");
   const edit = caps.operations.find(op => op.id === "image.edit");
   assert.equal(edit.execution, "native"); assert.ok(edit.blockedBy.includes("host-image-preview-api-required"));
-  assert.ok(caps.operations.filter(op => !["image.generate", "image.edit", "audio.speech"].includes(op.id)).every(op => op.execution === "configuration-only"));
+  assert.ok(caps.operations.filter(op => !["image.generate", "image.edit", "audio.speech"].includes(op.id) && !op.id.startsWith("workflow.")).every(op => op.execution === "configuration-only"));
   assert.deepEqual((await call("list_profiles")).profiles, []);
   assert.deepEqual((await call("list_workflows")).workflows, []);
   assert.equal(calls.length, 0);
@@ -101,7 +101,7 @@ test("stale saves and invalid direct-tool inputs reject without writes or creden
   const state = await get();
   await assert.rejects(plugin.onPanelInvoke("aimedia.save", { expectedRevision: 0, profiles: [], defaults, workflows: [] }), { code: "CONFLICT" });
   for (const name of tools.keys()) for (const args of [null, [], { unknown: "fixture-secret" }, { kind: "video-and-audio" }]) {
-    if (["media_catalog", "generate_image", "image_job", "export_image_result", "generate_audio", "audio_job", "export_audio_result", "audio_voices"].includes(name)) {
+    if (["media_catalog", "generate_image", "image_job", "export_image_result", "generate_audio", "audio_job", "export_audio_result", "audio_voices", "generate_workflow_media", "workflow_job", "cancel_workflow_job", "export_workflow_result"].includes(name)) {
       const result = await tools.get(name).execute(args, { sessionId: "test", turnId: "test", mode: "agent" });
       assert.equal(result.structuredContent.ok, false); assert.equal(result.structuredContent.error.code, "INVALID_ARGUMENT");
       assert.ok(!JSON.stringify(result).includes("fixture-secret"));

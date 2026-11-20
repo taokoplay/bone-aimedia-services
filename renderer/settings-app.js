@@ -115,9 +115,9 @@
     resetDraft(); s.tab = 'connections'; s.defaultsDirty = false; s.defaults = A.clone(s.data.defaults); s.notice = null;
     s.resourceProfile = item.id; remote.select(item.id); render(); document.getElementById('resource-heading')?.focus();
   }
-  function importRemote(definition, path, profileId) {
+  function importRemote(definition, path, profileId, contentSha256) {
     resetDraft(); s.tab = 'workflows'; s.screen = 'config'; s.isNew = true;
-    s.draft = { ...A.newWorkflow(), name: path.split('/').pop().replace(/\.json$/i, '').slice(0, 128), definition: A.clone(definition), connectionId: profileId };
+    s.draft = { ...A.newWorkflow(), name: path.split('/').pop().replace(/\.json$/i, '').slice(0, 128), definition: A.clone(definition), connectionId: profileId, origin: 'comfyui-remote', remote: { profileId, path, contentSha256: contentSha256 || '0'.repeat(64), syncedAt: new Date().toISOString() }, executable: false, outputs: [] };
     s.jsonText = JSON.stringify(definition, null, 2); s.dirty = true;
     s.notice = { text: t('workflowImported'), type: 'success' }; render(); document.getElementById('editor-heading')?.focus();
   }

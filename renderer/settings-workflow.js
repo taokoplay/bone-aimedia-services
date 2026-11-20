@@ -300,9 +300,19 @@
       C.touch(); C.render();
     }, { class: 'fetch-supplier-btn', disabled: s.busy || (d.bindings && d.bindings.length >= 12) });
 
+    const outputRule = d.outputs?.[0] || { kind: d.kind || 'image', nodeId: '', field: ({ image: 'images', video: 'videos', audio: 'audio' })[d.kind || 'image'] };
+    const outputFields = { image: 'images', video: 'videos', audio: 'audio' };
+    const setOutput = (key, value) => { const next = { ...outputRule, kind: d.kind, field: outputFields[d.kind], [key]: value }; d.outputs = value || key === 'nodeId' && !value ? [] : [next]; d.executable = d.outputs.length > 0; C.touch(); C.render(); };
+    const outputCard = h('div', { class: 'duty-card' },
+      field(t('outputKind'), picker(t('outputKind'), outputRule.kind, Object.entries(A.kinds).filter(([key]) => ['image', 'video', 'audio'].includes(key)).map(([value, label]) => ({ value, label })), value => { d.kind = value; setOutput('kind', value); }, s.busy)),
+      field(t('outputNode'), input(t('outputNode'), outputRule.nodeId || '', value => setOutput('nodeId', value.trim()), { maxlength: 128, placeholder: t('outputNodeExample'), disabled: s.busy })),
+      note(t('outputHelp')),
+      A.toggle(t('executable'), d.executable === true && d.outputs?.length > 0, value => { if (value && !(d.outputs || []).length) { message(t('outputNodeRequired'), 'error'); return; } d.executable = value; C.touch(); C.render(); }, s.busy));
+
     const view = h('div', { class: 'duty-editor' },
       section(t('basics'), basics),
       section('ComfyUI API JSON', definitionCard, jsonActions),
+      section(t('outputRule'), outputCard),
       nodeIds.length ? section(t('nodeParameters'), nodeInspectionCard) : null,
       section(t('bindings'), legacyBindings, addBindingBtn),
       section(t('nodeCheck'), h('div', { class: 'duty-card' }, note(s.probe ? A.probeText(s.probe) : t('nodeCheckHelp')), s.probe?.nodeTypes?.length ? note(t('nodeTypes', { p1: s.probe.nodeTypes.join('、') })) : null),

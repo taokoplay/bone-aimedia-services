@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "bone.aimedia.services",
   "name": "AI媒体生成服务",
-  "version": "0.6.2",
-  "description": "Agent-driven GPT images, scoped reference-image edits with JSON compatibility and MiniMax speech, with encrypted configuration, project-aware records and original-file export.",
+  "version": "0.7.0",
+  "description": "Agent-driven GPT images, scoped reference-image edits, MiniMax speech and validated ComfyUI workflow media, with encrypted configuration, project-aware records and original-file export.",
   "author": "taokoplay",
   "license": "AGPL-3.0-only",
   "homepage": "https://github.com/taokoplay/bone-aimedia-services",
@@ -11,17 +11,17 @@
     "ai",
     "media"
   ],
-  "safetyNotes": "Authorized generation sends prompts, speech text or reference images to the selected provider and may incur charges. Credentials use a macOS Keychain-backed encryption key. Workspace reads are limited to bone-media/references/** and bone-media/exports/**; writes stay under bone-media/exports/**. Reference edits verify local image hashes and use JSON data URLs or supported multipart uploads. Unknown tasks are never automatically resubmitted. Masks, sound effects, music, video and ComfyUI execution are unavailable.",
+  "safetyNotes": "Authorized generation sends prompts, speech text, reference images or ComfyUI workflow inputs to the selected provider and may incur charges. Credentials use a macOS Keychain-backed encryption key. Workspace reads are limited to bone-media/references/** and bone-media/exports/**; writes stay under bone-media/exports/**. ComfyUI results are downloaded only through the host bounded binary response and are hash/signature checked before local records. Unknown tasks are never automatically resubmitted. Masks, sound effects, music and arbitrary remote URLs are unavailable.",
   "i18n": {
     "en": {
       "name": "AI Media Services",
-      "description": "Generate GPT images, scoped reference-image edits and MiniMax speech from Agent conversations. JSON reference uploads work with text-only Host HTTP. Keep encrypted services, project labels, bilingual records, previews and original exports.",
-      "safetyNotes": "Authorized generation sends prompts, speech text or reference images to the selected provider and may incur charges. Credentials use a macOS Keychain-backed encryption key. Workspace reads are limited to bone-media/references/** and bone-media/exports/**; writes stay under bone-media/exports/**. Reference edits verify local image hashes and use JSON data URLs or supported multipart uploads. Unknown tasks are never automatically resubmitted. Masks, sound effects, music, video and ComfyUI execution are unavailable."
+      "description": "Generate GPT images, scoped reference-image edits, MiniMax speech and validated ComfyUI workflow media from Agent conversations. JSON reference uploads work with text-only Host HTTP. Keep encrypted services, project labels, bilingual records, previews and exports.",
+      "safetyNotes": "Authorized generation sends prompts, speech text, reference images or ComfyUI workflow inputs to the selected provider and may incur charges. Credentials use a macOS Keychain-backed encryption key. Workspace reads are limited to bone-media/references/** and bone-media/exports/**; writes stay under bone-media/exports/**. ComfyUI results use host-bounded binary responses and hash/signature checks. Unknown tasks are never automatically resubmitted. Masks, sound effects, music and arbitrary remote URLs are unavailable."
     },
     "zh-CN": {
       "name": "AI媒体生成服务",
-      "description": "通过 Agent 对话生成 GPT 图片、参考图编辑和 MiniMax 语音；JSON 参考图请求兼容仅支持文本 HTTP 的宿主。保留加密服务、项目标签、中英文记录、预览试听及原始文件导出。",
-      "safetyNotes": "经授权的生成会将提示词、朗读文本或参考图发送至所选供应商，可能产生费用。凭据使用 macOS 钥匙串主密钥加密。工作区读取仅限 bone-media/references/** 和 bone-media/exports/**，写入仍限 bone-media/exports/**。参考图会校验本地图片哈希，通过 JSON Data URL 或受支持的 multipart 发送。结果未知的任务不会自动重试。暂不支持蒙版、环境音效、音乐、视频及 ComfyUI 执行。"
+      "description": "通过 Agent 对话生成 GPT 图片、参考图编辑、MiniMax 语音及经校验的 ComfyUI 图片、视频和音频工作流结果；JSON 参考图请求兼容仅支持文本 HTTP 的宿主。",
+      "safetyNotes": "经授权的生成会将提示词、朗读文本、参考图或 ComfyUI 工作流输入发送至所选供应商，可能产生费用。凭据使用 macOS 钥匙串主密钥加密。工作区读取仅限 bone-media/references/** 和 bone-media/exports/**，写入仍限 bone-media/exports/**。ComfyUI 结果通过宿主受限二进制响应下载，并在写入记录前校验哈希与格式。结果未知的任务不会自动重试。暂不支持蒙版、环境音效、音乐及任意远程 URL。"
     }
   },
   "main": "main.js",
@@ -561,6 +561,121 @@
           },
           "required": [
             "modelRef"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "generate_workflow_media",
+        "risk": "high",
+        "description": "使用已保存并显式启用的 ComfyUI API 工作流生成一项图片、视频或音频。仅提交一次，稳定 requestKey 重试不会重复提交；结果未知时必须查询原任务。",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "workflowId": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "image",
+                "video",
+                "audio"
+              ]
+            },
+            "requestKey": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}$"
+            },
+            "inputs": {
+              "type": "object"
+            },
+            "waitMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 60000
+            }
+          },
+          "required": [
+            "workflowId",
+            "kind",
+            "requestKey"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "workflow_job",
+        "risk": "low",
+        "description": "查询当前会话的 ComfyUI 工作流任务、等待结果或读取已保存的媒体；不创建新任务。",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "get",
+                "list",
+                "result",
+                "reconcile"
+              ]
+            },
+            "jobId": {
+              "type": "string"
+            },
+            "expectedSha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "planSafeActions": [
+          "get",
+          "list",
+          "result",
+          "reconcile"
+        ]
+      },
+      {
+        "name": "cancel_workflow_job",
+        "risk": "high",
+        "description": "取消明确仍在 ComfyUI 队列中的工作流任务。运行中的任务不会被全局中断；取消后结果和扣费状态仍需核对。",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "confirm": {
+              "type": "boolean",
+              "enum": [
+                true
+              ]
+            }
+          },
+          "required": [
+            "jobId",
+            "confirm"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "export_workflow_result",
+        "risk": "medium",
+        "description": "将已完成的 ComfyUI 图片、视频或音频结果交接到授权工作区 bone-media/exports/**，不重新提交任务。",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "jobId"
           ],
           "additionalProperties": false
         }

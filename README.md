@@ -3,12 +3,12 @@
 独立的 PI-Desktop 媒体服务插件，以 Agent 对话驱动已配置模型生图和 MiniMax 语音合成；页面用于配置服务和查看生成记录。
 
 - 插件 ID：`bone.aimedia.services`
-- 当前版本：`0.6.2`
+- 当前版本：`0.7.0`
 - 源码目录：`bone-aimedia-services`
 - 许可证：[AGPL-3.0-only](LICENSE)
 
 **在对话中说明服务、模型和画面，或明确朗读文本与音色，Agent 可生成一张 PNG 或一段 MP3，并写入统一生成记录。**
-Environmental sound effects, music, video and ComfyUI execution remain unavailable. Reference images support existing Host text HTTP through JSON data URLs.
+Environmental sound effects and music remain unavailable. ComfyUI API workflows can generate validated image, video or audio results when a saved executable workflow and host binary-response support are available. Reference images support existing Host text HTTP through JSON data URLs.
 
 ## 界面与功能
 
@@ -47,7 +47,7 @@ Environmental sound effects, music, video and ComfyUI execution remain unavailab
 | OpenAI images | Encrypted configuration, model discovery, GPT text generation and scoped reference-image edits through JSON or supported multipart; PNG preview/export | Masks, multiple outputs, URL result downloads |
 | 小米 MiMo | 配音模型、音色、格式；`GET /models` | 实际语音合成、克隆或音色设计 |
 | MiniMax | 模型／音色目录；已配置 speech 系列语音朗读、MP3 试听与下载 | 环境音效、音乐、图像与视频生成 |
-| ComfyUI | 系统与节点发现、模型目录、远端工作流列表与详情；本地 API 工作流校验 | 上传输入、提交任务、取消远端任务和下载生成结果 |
+| ComfyUI | 系统与节点发现、模型目录、远端工作流同步、图片／视频／音频 API 工作流执行、校验结果和本地记录 | 画布工作流执行、任意 URL 下载、本地 ComfyUI 文件系统读取、运行中全局中断 |
 | 即梦 Dreamina | 一个 CLI 路径与模型配置入口 | 插件内启动 CLI、登录、额度查询和生成 |
 | LibTV | 一个官方 MCP 服务入口与接入说明 | 插件内 OAuth 登录和代理调用远程 MCP 工具 |
 
@@ -63,14 +63,19 @@ This settings page does not set a default voice. Existing saved voice values are
 preserved for compatibility. Chat-only model responses remain explicitly empty
 for media discovery; model choices still require saving.
 
-### ComfyUI 资源
+### ComfyUI 资源与工作流
 
-在 ComfyUI 连接列表选择“浏览资源”，手动读取模型目录，再查看目录里的模型文件；
-远端工作流可查看路径、大小、更新时间和 JSON 详情。只有通过校验的 API 格式才可
-导入为本地工作流草稿，必须再次保存；画布格式仅预览，不自动转换或执行。
+在 ComfyUI 连接列表选择“浏览资源”，手动同步模型目录和远端工作流；工作流
+详情会保存到插件私有快照。只有 API 格式并配置输出节点的工作流可以启用执行，
+画布格式仍只做预览。远程导入会保存来源路径、内容哈希和本地定义版本。
 
-生成记录页仅展示本插件自己的任务，不再混入 ComfyUI 服务端历史和队列。
-原有服务端只读查询接口保留兼容，返回数据可能包含其他客户端任务，不能据此认领成果。
+Agent 可用 `generate_workflow_media` 执行已保存的图片、视频或音频工作流，
+并用 `workflow_job` 查询原任务。结果通过宿主受限二进制响应下载，校验类型、
+大小、签名和 SHA-256 后进入统一生成记录。重载或重复 requestKey 会查询原任务，
+不会再次提交。
+
+生成记录页展示本插件自己的 GPT、MiniMax 和 ComfyUI 任务。ComfyUI 服务端历史
+和队列仍是独立的只读检查数据，不会被认领为插件任务。
 
 查询全部通过用户点击触发，没有后台轮询。老版本服务器不支持某接口时明确显示
 “不支持”，不能当作“没有模型／没有任务”。配置修改或重载后旧查询结果需重新读取。
@@ -162,7 +167,7 @@ Agent 调用导出工具，并在授权工作区运行其固定解码命令，�
 
 ## 安装与权限
 
-Install `dist/bone.aimedia.services-0.6.2.piplug` in plugin management, or load the development directory and review the requested permissions.
+Install `dist/bone.aimedia.services-0.7.0.piplug` in plugin management, or load the development directory and review the requested permissions.
 插件启动即注册工具与技能，不需要先打开页面。已有有效配置后即可在 Agent 模式调用。
 不保证在已运行的同一轮即时增加工具；新会话和下一轮的发现以安装客户端验收为准。
 当前安装的 PI-Desktop 0.21.0 已验证 Agent 模式下的新会话／下一轮工具发现。

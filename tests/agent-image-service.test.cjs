@@ -54,7 +54,9 @@ test("retries retain the original model after settings change; changed intent wi
 test("multiple models ask once; explicit selection persists per session without changing defaults", async t => {
   const f = await fixture(t);
   await f.settings.save({ expectedRevision: 1, profiles: [profile("gpt"), profile("other")], defaults });
-  const ambiguous = data(await f.call("generate_image", input()));
+  const ambiguousReply = await f.call("generate_image", input());
+  const ambiguous = data(ambiguousReply);
+  assert.equal(ambiguousReply.isError, true); assert.equal(ambiguous.error.code, "MODEL_SELECTION_REQUIRED");
   assert.equal(ambiguous.selection.status, "selection-required"); assert.equal(f.calls.length, 0);
   const chosen = await f.call("generate_image", input({ modelRef: modelRef("other", "gpt-image-2") }));
   assert.equal(data(chosen).job.request.profileId, "other");
@@ -65,7 +67,8 @@ test("multiple models ask once; explicit selection persists per session without 
   assert.equal(anotherSession.selection.status, "selection-required");
 });
 test("invalid explicit reference never silently switches to a configured model", async t => {
-  const f = await fixture(t), result = data(await f.call("generate_image", input({ modelRef: modelRef("missing", "gpt-image-2") })));
+  const f = await fixture(t), reply = await f.call("generate_image", input({ modelRef: modelRef("missing", "gpt-image-2") })), result = data(reply);
+  assert.equal(reply.isError, true); assert.equal(result.error.code, "MODEL_UNAVAILABLE");
   assert.equal(result.selection.status, "unavailable"); assert.equal(f.calls.length, 0);
 });
 test("trusted context, mode and action boundaries deny writes and cross-session job access", async t => {

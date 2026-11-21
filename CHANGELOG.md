@@ -8,6 +8,7 @@
 - Validate output paths, media signatures and SHA-256 before adding independent `wf-` jobs to unified Generation Records.
 - Add `generate_workflow_media`, `workflow_job`, `cancel_workflow_job` and `export_workflow_result` while preserving the existing sixteen tools and image/audio records.
 - Keep canvas workflows preview-only, server-wide history/queue separate, and unknown outcomes free of automatic resubmission.
+- Mark structured Agent generation failures as tool errors so model-selection failures are not reported as successful calls.
 
 ## 0.6.2
 

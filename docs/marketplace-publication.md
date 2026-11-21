@@ -19,6 +19,10 @@ for command titles, while view titles already support complete locale objects.
 Changing the command title to an object would break installation on that client.
 The host is not updated as part of this release.
 
+## Version 0.7.1
+
+This patch makes structured Agent image-generation selection failures explicit tool errors. Multiple ready models without a saved default return `MODEL_SELECTION_REQUIRED` and do not submit a provider request; invalid explicit model references return `MODEL_UNAVAILABLE`. The source remains compatible with the published 0.7.0 workflow and tool set.
+
 The official publishing gate is read from https://plugins.aiuo.net/skill.md.
 Passing its static checks does not establish translation correctness; runtime
 locale checks and existing Chinese user paths are required as well.

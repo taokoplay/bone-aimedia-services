@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1
+
+- Fix Agent image generation failures that were returned as completed tool calls when multiple models had no selected default.
+- Return `MODEL_SELECTION_REQUIRED` or `MODEL_UNAVAILABLE`, mark structured failures as tool errors, and keep provider submission at zero until a model is explicitly selected.
+
 ## 0.7.0
 
 - Add ComfyUI API workflow execution for image, video and audio outputs.

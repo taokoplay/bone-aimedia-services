@@ -313,7 +313,7 @@
       {
         "name": "generate_image",
         "risk": "high",
-        "description": "按用户已授权的要求，用已配置 GPT 模型生成一张 PNG，可用 referenceImages 引用已暂存参考图；先用 media_catalog 核对宿主支持。可能收费；无需面板。modelRef 可指定模型，省略按会话选择、默认、唯一候选解析。相同 requestKey 重试不重复生成。新提交保持调用直到请求结束（网络上限90秒）并保存结果；waitMs 仅用于已有任务的本地等待。完成返回图片，否则返回原任务状态，unknown 不得盲目新建重试。",
+        "description": "按用户已授权的要求，用已配置 GPT 模型生成一张 PNG，可用 referenceImages 引用已暂存参考图；先用 media_catalog 核对宿主支持。可能收费；无需面板。modelRef 可指定模型，省略按会话选择、默认、唯一候选解析；若存在多个 ready 候选且没有会话选择或具体默认，返回 MODEL_SELECTION_REQUIRED 并且不会提交，必须先让用户选择或传入 media_catalog 返回的完整 modelRef。相同 requestKey 重试不重复生成。新提交保持调用直到请求结束（网络上限90秒）并保存结果；waitMs 仅用于已有任务的本地等待。完成返回图片，否则返回原任务状态，unknown 不得盲目新建重试。",
         "schema": {
           "type": "object",
           "properties": {

@@ -18,9 +18,12 @@ and panel routes keep their names, arguments and response shapes.
 
 Tool responses contain `content` blocks plus `structuredContent` metadata. Safe
 errors use `{ok:false,error:{code}}`, preserving business codes across the host's
-exception serialization. Caller/session IDs cannot be supplied in arguments.
-`media_catalog.list` and all four image_job actions are declared plan-safe;
-generate/export require host-attested Agent mode. Plan/Goal cannot generate.
+exception serialization. The tool wrapper also marks every structured
+`structuredContent.ok === false` response with `isError:true`, so a host that
+records completed calls separately cannot present a rejected request as success.
+Caller/session IDs cannot be supplied in arguments. `media_catalog.list` and all
+four image_job actions are declared plan-safe; generate/export require
+host-attested Agent mode. Plan/Goal cannot generate.
 
 Starting in 0.4.1, new submissions cannot return after the short waitMs interval.
 The installed worker cancels unresolved host API promises when their originating
@@ -128,8 +131,9 @@ Thus the plugin declares the appropriate read actions, and its own mode checks
 are tested, but those tools are not offered in Plan mode on this client version.
 Normal Agent mode works. No client patch or permission bypass is used.
 
-The host may represent a structured plugin failure as a completed tool event;
-Agent callers must inspect structuredContent.ok/error, not only the event status.
+The host may still record a plugin call as completed even when the structured
+result rejects it; the wrapper now also sets `isError:true`. Agent callers must
+inspect `structuredContent.ok/error`, not only the event status.
 ## Installation and verification
 
 Register tools and the skill at onStartup; opening a panel is not required.

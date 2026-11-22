@@ -57,8 +57,7 @@ The visible navigation is Configuration and Generation Records. Agent conversati
 create tasks; manual image/speech forms are removed. Records merges image and speech
 jobs into one local list with project, kind and channel/model labels.
 It uses local state filters and a modal detail view described in
-generation-records-ui.md. Existing image records and routes remain compatible;
-additive audio/records routes are described in audio-generation-contract.md.
+It uses local state filters and a modal detail view described in generation-records-ui.md. Existing image records and routes remain compatible; additive audio/records routes are described in audio-generation-contract.md. The records page and `delete_generation_records` tool can remove selected terminal local records and private result files after confirmation; unresolved jobs remain protected.
 ComfyUI history/queue APIs remain compatible but are not mixed into this list.
 ## Panel bridge
 

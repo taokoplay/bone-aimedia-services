@@ -3,7 +3,7 @@
 独立的 PI-Desktop 媒体服务插件，以 Agent 对话驱动已配置模型生图和 MiniMax 语音合成；页面用于配置服务和查看生成记录。
 
 - 插件 ID：`bone.aimedia.services`
-- 当前版本：`0.7.1`
+- 当前版本：`0.7.2`
 - 源码目录：`bone-aimedia-services`
 - 许可证：[AGPL-3.0-only](LICENSE)
 
@@ -123,8 +123,9 @@ ComfyUI 工作流采用 API 格式 JSON，记录名称、输出媒体类型、�
 | `submit_image` | 确认后单次提交并等待本次请求结束，可能收费；同任务不会重复提交 |
 | `get_image_job` / `list_image_jobs` | 本地查询任务状态与记录，不提交远端请求 |
 | `read_image_result` | 分块读取已验证的 PNG，每次最多 64 KiB；不返回私有路径 |
+| `delete_generation_records` | 确认后批量删除已准备、已完成或已失败的本地图片、音频和 ComfyUI 记录及其私有结果文件；未知或仍在处理的任务会被拒绝 |
 
-原有 12 个工具保留，新增 4 个音频工具。模型目录与任务查询不联网；`audio_voices` 显式查询供应商音色。生成入口
+当前共 21 个 Agent 工具。模型目录与任务查询不联网；`audio_voices` 显式查询供应商音色；`delete_generation_records` 只删除本地记录，不取消供应商任务。生成入口
 在用户明确授权的范围内提交，宿主权限检查继续生效。可直接请求：
 
 > 用媒体服务中的传贝GPT、GPT Image 2，低质量 1024×1024，生成一张白底蓝色陶瓷杯；只提交一次。
@@ -145,7 +146,7 @@ local snapshot. See the [reference-image contract](docs/gpt-image-reference-cont
 
 语音流程：查询音频模型 → `audio_voices` 选择明确音色 → `generate_audio(operation="speech")` → `audio_job` → `export_audio_result`。
 朗读文本最多 1000 字符，语速 0.5–2，输出 MP3；不设置新的默认音色。音频和图片共用最多两个活动生成名额。
-每类记录最多 200 项，合并列表最多 400 项。记录页可见时自动同步本地任务；关闭音频弹窗会停止播放并释放临时地址。
+每类记录持续保留，合并列表不截断；记录页可见时自动同步本地任务。关闭音频弹窗会停止播放并释放临时地址。可批量删除已准备、已完成和已失败的本地记录；仍在提交、状态未知或结果待恢复的任务需先核对。
 
 工具可调用只证明本插件对当前会话可达，不代表某个供应商能生成。未发现工具也不能
 直接推断插件未安装，需要区分未启用、未授权与未暴露。

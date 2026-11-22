@@ -42,15 +42,15 @@ test("audio storage preserves private modes, permanent claims, immutable bytes a
   for (const dir of [f.root, f.directory]) assert.equal((await fs.stat(dir)).mode & 0o777, 0o700);
   for (const file of await fs.readdir(f.directory)) assert.equal((await fs.stat(path.join(f.directory, file))).mode & 0o777, 0o600);
   assert.equal(await fs.readFile(path.join(f.directory, job.id + ".submitted"), "utf8"), "audio-job-submitted-v1\n");
-  assert.equal(await fs.readFile(path.join(f.directory, ".slot-0"), "utf8"), job.id + "\n");
 });
-test("audio has 200 permanent slots independent of image slots", async t => {
-  const f = await fixture(t), job = prepared(); await f.store.create(job);
-  for (let i = 1; i < 200; i++) await fs.writeFile(path.join(f.directory, `.slot-${i}`), `aud-${randomUUID()}\n`, { mode: 0o600 });
-  await assert.rejects(storeAt(f.root).create(prepared()), { code: "GENERATION_LIMIT" });
+test("audio records have no fixed capacity and can be deleted in batches", async t => {
+  const f = await fixture(t), jobs = [];
+  for (let i = 0; i < 205; i += 1) { const job = prepared(); await f.store.create(job); jobs.push(job); }
+  assert.equal((await f.store.list()).length, 205);
   const image = createImageJobStorage(() => f.root, imageSchema.parseJob), imageJob = prepared(imageSchema);
-  assert.equal(await image.create(imageJob), true); assert.equal((await image.list()).length, 1); assert.equal((await f.store.list()).length, 1);
-  assert.equal(await fs.readFile(path.join(f.root, "image-jobs", ".slot-0"), "utf8"), imageJob.id + "\n");
+  assert.equal(await image.create(imageJob), true); assert.equal((await image.list()).length, 1);
+  const deleted = await f.store.removeMany(jobs.slice(0, 5).map(job => job.id));
+  assert.equal(deleted.length, 5); assert.equal((await f.store.list()).length, 200); assert.equal((await image.list()).length, 1);
 });
 test("audio IDs, corrupt records, untrusted provenance and descriptor bounds fail closed", async t => {
   const f = await fixture(t);

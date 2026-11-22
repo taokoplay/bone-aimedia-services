@@ -20,8 +20,9 @@ one column: channel above, smaller muted model below, including on narrow screen
 Full job IDs, request
 hashes, prompt text and billing explanations belong in details, not every row.
 Image and speech records share the list; task labels distinguish media kind. Each
-store retains 200 records, for a combined maximum of 400. Local polling while the
-page is visible discovers newly created Agent tasks without a supplier request.
+Image and speech records share the list; task labels distinguish media kind. Records are retained until the user explicitly deletes them. Local polling while the page is visible discovers newly created Agent tasks without a supplier request.
+
+Rows in prepared, succeeded and failed states can be selected for a confirmed batch deletion. The operation removes the local record and its private result files across image, audio and ComfyUI task namespaces. Submitting, unknown and result-pending tasks remain unselectable until their outcome is reconciled.
 
 ### Project label
 

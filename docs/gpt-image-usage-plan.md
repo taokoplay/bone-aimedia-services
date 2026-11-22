@@ -56,10 +56,7 @@ this plugin does not modify works or certify visual quality.
 
 ## Durable execution and safety
 
-Jobs live in a dedicated private directory, bounded to 200 permanent capacity
-reservations. Immutable request IDs deduplicate preparation. Exclusive atomic
-publication replaces global locks, so an interrupted publication affects only
-its job or reserved slot. No reserved slot or submission claim is auto-reclaimed.
+Jobs live in a dedicated private directory without a fixed record-count cap. Immutable request IDs deduplicate preparation. Exclusive atomic publication keeps each job independent. Explicit batch deletion removes terminal records and their private result files; no unresolved submission or recovery claim is auto-reclaimed.
 The durable per-job claim prevents two processes or a restarted process from
 submitting the same job. State and output are synced before success.
 Missing/corrupt data fails closed. A submitting job without a live worker or

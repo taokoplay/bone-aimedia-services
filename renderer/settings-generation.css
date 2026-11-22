@@ -17,6 +17,11 @@
 .records-total { color:var(--muted); background:var(--surface); border:1px solid var(--line); padding:0 7px; border-radius:6px; font-size:12px; font-variant-numeric:tabular-nums; }
 .records-refresh { min-height:32px; padding:5px 10px; font-size:12px; flex:none; }
 .records-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
+.records-bulk-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.records-select-all { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; white-space:nowrap; }
+.records-selected-count { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; }
+.records-delete-selected { min-height:32px; padding:5px 10px; font-size:12px; }
+.record-task > input[type="checkbox"] { flex:none; width:16px; height:16px; margin:0; }
 .record-filters { display:flex; gap:4px; padding:4px; max-width:100%; border-radius:8px; background:var(--surface); border:1px solid var(--line); }
 .record-filters button { display:flex; align-items:center; justify-content:center; gap:8px; padding:5px 12px; min-height:32px; color:var(--muted); border:1px solid transparent; font-size:13px; border-radius:5px; }
 .record-filters button[aria-pressed="true"] { color:var(--fg); border-color:var(--border); background:var(--input); box-shadow:0 1px 3px #0001; }

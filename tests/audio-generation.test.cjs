@@ -47,7 +47,7 @@ test("public prepare → submitAndWait → list/get/read → restart preserves a
   await f.service.dispose(); const restarted = f.create(f.newSettings());
   assert.deepEqual(await restarted.get({ jobId: final.id }), final);
   assert.deepEqual(await restarted.submitAndWait(submit(prepared)), final); assert.equal(f.calls.length, 1);
-  const listed = await restarted.list(); assert.equal(listed.limit, 200); assert.equal(listed.jobs[0].request.text, undefined);
+  const listed = await restarted.list(); assert.equal(listed.limit, null); assert.equal(listed.jobs[0].request.text, undefined);
   const part = await restarted.readResult({ jobId: final.id, expectedSha256: final.result.sha256, offset: 0 });
   assert.equal(part.mimeType, "audio/mpeg"); assert.equal(part.eof, true); assert.deepEqual(Buffer.from(part.base64, "base64"), validMp3());
   for (const value of [prepared, final, listed]) { const json = JSON.stringify(value); assert.ok(!json.includes(secret) && !json.includes(f.root)); assert.equal(value.agentRequest, undefined); assert.equal(value.version, undefined); }

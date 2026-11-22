@@ -17,6 +17,7 @@ const { createAgentAudioService } = require("./lib/agent-audio-service.js");
 const { createAgentAudioTools } = require("./tools/agent-audio.js");
 const { createAudioResultExporter } = require("./lib/audio-result-export.js");
 const { createGenerationRecords } = require("./lib/generation-records.js");
+const { createAgentRecordTools } = require("./tools/agent-records.js");
 const { createImageReferenceReader } = require("./lib/image-reference-reader.js");
 const { createProjectCapture } = require("./lib/generation-project.js");
 const { createMediaResultExporter } = require("./lib/media-result-export.js");
@@ -27,7 +28,7 @@ const VIEW_ID = "settings";
 function error(code, message) { return Object.assign(new Error(message), { code }); }
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
 let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, workflowMedia = null, workflowExporter = null, records = null;
-let version = "0.7.1";
+let version = "0.7.2";
 let registered = [];
 let registrationErrors = [];
 function safeFailure(failure) {
@@ -47,7 +48,8 @@ function safeFailure(failure) {
     CREDENTIAL_LEGACY: "配置使用旧版宿主加密格式，需要原加密环境才能恢复；原文件已保留。",
     GENERATION_UNSUPPORTED: "请选择已配置的 GPT 图片或 MiniMax 语音模型；当前不支持环境音效。",
     GENERATION_BUSY: "已有生成任务占用并发名额，请等待后再提交。",
-    GENERATION_LIMIT: "本地生成记录已达到容量上限，未提交新的生成请求。",
+    GENERATION_LIMIT: "本地生成记录操作未完成，未提交新的生成请求。",
+    GENERATION_UNRESOLVED: "任务仍可能在供应商侧运行或结果待恢复，请先刷新并核对后再删除。",
     GENERATION_UNKNOWN: "生成结果尚不确定，请先检查供应商记录，勿直接重复生成。",
     GENERATION_REQUEST_CONFLICT: "任务参数与已准备请求不一致，请重新核对。",
     RESULT_INVALID: "媒体文件校验未通过，未作为成功结果保存。",
@@ -114,7 +116,7 @@ async function workflowAccess(method, payload, ctx) {
     throw error("INVALID_ARGUMENT", "Unknown ComfyUI workflow action.");
   } catch (failure) { throw safeFailure(failure); }
 }
-const tools = [...createDiscoveryTools({ read: () => access("read"), getVersion: () => version, getReferenceSupport: () => images?.referenceSupport }), ...createImageTools({ access: (method, input, ctx) => imageAccess(method, input, ctx ?? null) }), ...createAgentImageTools({ access: agentAccess }), ...createAgentAudioTools({ access: agentAudioAccess }), ...createWorkflowMediaTools({ access: workflowAccess })];
+const tools = [...createDiscoveryTools({ read: () => access("read"), getVersion: () => version, getReferenceSupport: () => images?.referenceSupport }), ...createImageTools({ access: (method, input, ctx) => imageAccess(method, input, ctx ?? null) }), ...createAgentImageTools({ access: agentAccess }), ...createAgentAudioTools({ access: agentAudioAccess }), ...createWorkflowMediaTools({ access: workflowAccess }), ...createAgentRecordTools({ access: (method, input) => recordsAccess(method, input) })];
 async function clearRuntime() {
   const old = settings, oldImages = images, oldAgent = agentImages, oldAudio = audio, oldAgentAudio = agentAudio, oldWorkflow = workflowMedia;
   settings = null; images = null; agentImages = null; audio = null; agentAudio = null; workflowMedia = null; workflowExporter = null; records = null;
@@ -165,6 +167,7 @@ async function dispatchPanel(channel, payload) {
     case "aimedia.audio.get": return audioAccess("get", payload);
     case "aimedia.audio.list": return audioAccess("list", payload);
     case "aimedia.audio.read": return audioAccess("readResult", payload);
+    case "aimedia.records.delete": return recordsAccess("delete", payload);
     case "aimedia.records.list": return recordsAccess("list", payload);
     case "aimedia.records.get": return recordsAccess("get", payload);
     case "aimedia.records.read": return recordsAccess("read", payload);

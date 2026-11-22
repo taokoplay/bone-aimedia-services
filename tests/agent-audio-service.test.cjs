@@ -71,7 +71,7 @@ test("Agent voice discovery -> speech -> mixed records -> verified export and re
   const image = data(await f.call("generate_image", { requestKey: "cup", prompt: "A blue cup", waitMs: 0 }));
   assert.equal(image.job.state, "succeeded");
   const list = await f.panel("aimedia.records.list", {});
-  assert.equal(list.jobs.length, 2); assert.equal(list.limit, 400);
+  assert.equal(list.jobs.length, 2); assert.equal(list.limit, null);
   assert.deepEqual(list.jobs.map(job => job.kind).sort(), ["audio", "image"]);
   assert.equal(list.jobs.find(job => job.kind === "audio").request.text, undefined);
   const full = await f.panel("aimedia.records.get", { kind: "audio", jobId: speech.job.id });

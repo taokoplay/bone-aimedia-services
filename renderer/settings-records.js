@@ -12,6 +12,7 @@
   const qualities = { low: t('low'), medium: t('medium'), high: t('high') };
   const text = (node, value) => { const next = String(value ?? '—'); if (node.textContent !== next) node.textContent = next; };
   const stateInfo = state => states[state] || [t('unknown'), 'warning'];
+  const canDelete = job => job.kind === 'workflow' ? ['succeeded', 'failed'].includes(job.state) : ['prepared', 'succeeded', 'failed'].includes(job.state);
   function badge(node, job) {
     const [label, tone] = stateInfo(job.state);
     text(node, label); node.className = `record-status record-status-${tone}`;
@@ -29,16 +30,17 @@
     svg.innerHTML = kind === 'audio' ? '<path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/>' : kind === 'video' ? '<rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 9 4-2v10l-4-2"/>' : '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>';
     return svg;
   }
-  A.recordsController = ({ state: s, disabled, allJobs, getJob, refresh, listState, clearPreview, loadResult, previewView, previewKey }) => {
+  A.recordsController = ({ state: s, disabled, allJobs, getJob, refresh, deleteRecords, listState, clearPreview, loadResult, previewView, previewKey }) => {
     let alive = true, root = null, filter = 'all', selectedId = null, ticket = 0;
+    const selectedIds = new Set(), rows = new Map(), filterButtons = new Map(), meta = new Map();
     let dialog = null, parts = null, detailLoading = false, detailError = '', returnFocus = null, lastPreview = '';
-    const rows = new Map(), filterButtons = new Map(), meta = new Map();
-    let count, unresolved, list, empty, error, refreshButton;
+    let count, unresolved, list, empty, error, refreshButton, selectAll, selectedCount, deleteSelectedButton;
     const live = () => alive && s.alive;
     const showing = id => live() && s.screen === 'records' && selectedId === id && Boolean(dialog?.open);
     const selected = () => allJobs().find(job => job.id === selectedId);
     function createRow(job) {
       const mediaKind = job.kind === 'workflow' ? job.request.kind : job.kind;
+      const select = h('input', { type: 'checkbox', 'aria-label': t('selectRecord', { p1: job.id }), onchange: event => { event.stopPropagation(); if (event.target.checked) selectedIds.add(job.id); else selectedIds.delete(job.id); update(); } });
       const channel = h('span', { class: 'record-value record-channel-value' });
       const model = h('span', { class: 'record-value record-model-value' });
       const status = h('span');
@@ -47,12 +49,18 @@
       const action = button(t('details'), event => { void open(job.id, event.currentTarget); }, { class: 'record-detail-button', 'aria-label': t('viewTask', { p1: job.id }) });
       const cell = (label, content, className) => h('div', { class: `record-cell ${className}`, role: 'cell' }, h('span', { class: 'record-mobile-label', 'aria-hidden': 'true' }, label), content);
       const node = h('div', { class: 'record-row', role: 'row', 'data-record-job': job.id, 'data-record-kind': mediaKind, [mediaKind === 'audio' ? 'data-audio-job' : mediaKind === 'video' ? 'data-video-job' : 'data-image-job']: job.id },
-        h('div', { class: 'record-task', role: 'cell' }, h('span', { class: 'record-image-icon', 'aria-hidden': 'true' }, mediaIcon(mediaKind)),
+        h('div', { class: 'record-task', role: 'cell' }, select, h('span', { class: 'record-image-icon', 'aria-hidden': 'true' }, mediaIcon(mediaKind)),
           h('div', { class: 'record-task-copy' }, h('strong', {}, mediaKind === 'audio' ? t('speech') : mediaKind === 'video' ? t('video') : t('imageGeneration')), project)),
         h('div', { class: 'record-cell record-source', role: 'cell' }, channel, model),
         cell(t('status'), status, 'record-state'), cell(t('createdAt'), time, 'record-time'),
         h('div', { class: 'record-action', role: 'cell' }, action));
-      return { node, channel, model, status, time, action, project };
+      return { node, select, channel, model, status, time, action, project };
+    }
+    async function deleteSelected() {
+      const selectedJobs = allJobs().filter(job => selectedIds.has(job.id) && canDelete(job));
+      if (!selectedJobs.length) return;
+      if (!await A.confirm(t('deleteSelectedTitle'), t('deleteSelectedDescription', { p1: selectedJobs.length }), t('confirmDeleteSelected'))) return;
+      if (await deleteRecords(selectedJobs)) { selectedIds.clear(); update(); }
     }
     function view() {
       if (!root) {
@@ -69,7 +77,13 @@
         empty = h('div', { class: 'records-empty', role: 'status' });
         root = h('div', { class: 'generation-view generation-records', 'data-generation': '' },
           h('div', { class: 'records-heading' }, h('div', { class: 'records-title' }, h('h2', {}, t('records')), count), refreshButton),
-          h('div', { class: 'records-toolbar' }, h('div', { class: 'record-filters', role: 'group', 'aria-label': t('statusFilter') }, controls), unresolved),
+          h('div', { class: 'records-toolbar' },
+            h('div', { class: 'record-filters', role: 'group', 'aria-label': t('statusFilter') }, controls),
+            h('div', { class: 'records-bulk-actions' },
+              h('label', { class: 'records-select-all' }, selectAll = h('input', { type: 'checkbox', 'aria-label': t('selectAll'), onchange: event => { const chosen = allJobs().filter(job => (filter === 'all' || job.state === filter) && canDelete(job)); for (const job of chosen) { if (event.target.checked) selectedIds.add(job.id); else selectedIds.delete(job.id); } update(); } }), h('span', {}, t('selectAll'))),
+              selectedCount = h('span', { class: 'records-selected-count' }),
+              deleteSelectedButton = button(t('deleteSelected'), () => { void deleteSelected(); }, { class: 'records-delete-selected' })),
+            unresolved),
           error,
           h('div', { class: 'records-table', role: 'table', 'aria-label': t('records'), 'data-generation-list': '' },
             h('div', { class: 'records-columns', role: 'row' }, [t('task'), t('source'), t('status'), t('createdAt'), t('actions')].map(label => h('div', { role: 'columnheader' }, label))), list),
@@ -81,6 +95,7 @@
       if (!live()) return;
       if (root) {
         const jobs = allJobs(), { loading, error: listError } = listState();
+        for (const id of selectedIds) if (!jobs.some(job => job.id === id)) selectedIds.delete(id);
         text(count, jobs.length); refreshButton.disabled = disabled() || loading;
         refreshButton.setAttribute('aria-busy', String(loading));
         root.querySelector('[data-generation-list]').setAttribute('aria-busy', String(loading));
@@ -94,6 +109,12 @@
         const issue = s.legacyBackend ? t('legacyBackend') : listError;
         text(error, issue); error.hidden = !issue;
         const visible = jobs.filter(job => filter === 'all' || job.state === filter);
+        const selectable = visible.filter(canDelete), selectedVisible = selectable.filter(job => selectedIds.has(job.id));
+        text(selectedCount, t('selectedCount', { p1: selectedIds.size }));
+        deleteSelectedButton.disabled = disabled() || selectedIds.size === 0;
+        selectAll.disabled = disabled() || selectable.length === 0;
+        selectAll.checked = selectable.length > 0 && selectedVisible.length === selectable.length;
+        selectAll.indeterminate = selectedVisible.length > 0 && selectedVisible.length < selectable.length;
         const ids = new Set(visible.map(job => job.id));
         for (const [id, row] of rows) {
           if (!ids.has(id)) {
@@ -111,7 +132,7 @@
           text(row.project, projectName);
           row.project.title = projectName;
           row.project.setAttribute('aria-label', t('project', { p1: projectName }));
-          badge(row.status, job); timestamp(row.time, job.createdAt); row.action.disabled = disabled();
+          badge(row.status, job); timestamp(row.time, job.createdAt); row.select.checked = selectedIds.has(job.id); row.select.disabled = disabled() || !canDelete(job); row.action.disabled = disabled();
           if (list.children[index] !== row.node) list.insertBefore(row.node, list.children[index] || null);
         });
         empty.hidden = Boolean(visible.length);
@@ -254,7 +275,7 @@
       }
       returnFocus = null;
     }
-    function dispose() { alive = false; closeDetails(false); root = null; rows.clear(); }
+    function dispose() { alive = false; closeDetails(false); root = null; selectedIds.clear(); rows.clear(); }
     return { view, update, showing, closeDetails, dispose };
   };
 })();

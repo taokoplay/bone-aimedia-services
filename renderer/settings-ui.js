@@ -130,6 +130,7 @@
     GENERATION_UNSUPPORTED: t('generationUnsupported'),
     GENERATION_BUSY: t('generationBusy'),
     GENERATION_LIMIT: t('generationLimit'),
+    GENERATION_UNRESOLVED: t('generationUnresolved'),
     GENERATION_UNKNOWN: t('generationUnknown'),
     GENERATION_REQUEST_CONFLICT: t('generationConflict'),
     RESULT_INVALID: t('resultInvalid'),

@@ -67,6 +67,19 @@ test("input, hash, confirmation and changed configuration are rejected before di
   await assert.rejects(f.service.submit(submit(job)), { code: "CONFLICT" }); assert.equal(f.calls.length, 0);
 });
 
+test("terminal image records can be deleted while unknown records remain protected", async t => {
+  const f = await fixture(t), preparedJob = await f.service.prepare(input());
+  const deleted = await f.service.deleteMany({ jobIds: [preparedJob.id], confirm: true });
+  assert.deepEqual(deleted, { deleted: [preparedJob.id], count: 1 });
+  await assert.rejects(f.service.get({ jobId: preparedJob.id }), { code: "NOT_FOUND" });
+
+  const unknownFixture = await fixture(t, async () => { throw Object.assign(Error(secret), { code: "TIMEOUT" }); });
+  const unknownJob = await unknownFixture.service.prepare(input());
+  await unknownFixture.service.submit(submit(unknownJob));
+  assert.equal((await settled(unknownFixture.service, unknownJob.id)).state, "unknown");
+  await assert.rejects(unknownFixture.service.deleteMany({ jobIds: [unknownJob.id], confirm: true }), { code: "GENERATION_UNRESOLVED" });
+});
+
 test("timeouts and disconnects stay unknown across restart and never resubmit", async t => {
   const f = await fixture(t, async () => { throw Object.assign(Error(secret), { code: "TIMEOUT" }); });
   const job = await f.service.prepare(input()); await f.service.submit(submit(job));
@@ -124,7 +137,7 @@ test("entry Agent tools and panel share the same generation lifecycle and safe e
   const host = { plugin: { getDataPath: async () => f.root, getManifest: async () => ({ version: "0.3.0" }) }, commands: { register: async () => {}, unregister: async () => {} },
     agent: { registerTool: async tool => tools.set(tool.name, tool), unregisterTool: async name => tools.delete(name) }, net: { fetch: async () => response({ data: [{ b64_json: png().toString("base64") }] }) } };
   const entry = createPlugin(host, () => testSecrets()); await entry.onLoad(); t.after(() => entry.onUnload());
-  assert.equal(tools.size, 20); assert.equal(tools.get("submit_image").risk, "high"); assert.equal(tools.get("generate_workflow_media").risk, "high");
+  assert.equal(tools.size, 21); assert.equal(tools.get("submit_image").risk, "high"); assert.equal(tools.get("generate_workflow_media").risk, "high");
   const job = await tools.get("prepare_image").execute(input());
   const sent = await entry.onPanelInvoke("aimedia.invoke", { channel: "aimedia.image.submit", payload: submit(job) }); assert.equal(sent.ok, true);
   const adapter = { get: input => tools.get("get_image_job").execute(input) };

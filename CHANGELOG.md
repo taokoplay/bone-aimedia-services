@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2
+
+- Remove the fixed per-media and unified generation-record caps; existing records remain readable and new records are retained until explicitly deleted.
+- Add guarded batch deletion for local image, audio and ComfyUI records through the records page and `delete_generation_records` Agent tool.
+- Keep unresolved submissions, unknown outcomes and result-recovery states protected from deletion; terminal record deletion removes associated private result files.
+
 ## 0.7.1
 
 - Fix Agent image generation failures that were returned as completed tool calls when multiple models had no selected default.

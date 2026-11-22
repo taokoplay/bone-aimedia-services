@@ -185,6 +185,25 @@ class RecordsBrowser(unittest.TestCase):
         self.page.get_by_role("button", name="刷新记录", exact=True).click()
         self.assertEqual(self.rpc("fixture.metrics")["network"], self.network)
 
+
+    def test_batch_delete_terminal_records_preserves_unresolved_tasks(self):
+        self.seed()
+        self.records()
+        completed = self.row("completed").get_by_role("checkbox", name=f'选择记录 {self.jobs["completed"]["id"]}', exact=True)
+        failed = self.row("failed").get_by_role("checkbox", name=f'选择记录 {self.jobs["failed"]["id"]}', exact=True)
+        expect(self.row("unknown").get_by_role("checkbox", name=f'选择记录 {self.jobs["unknown"]["id"]}', exact=True)).to_be_disabled()
+        expect(self.row("generating").get_by_role("checkbox", name=f'选择记录 {self.jobs["generating"]["id"]}', exact=True)).to_be_disabled()
+        completed.check(); failed.check()
+        expect(self.page.get_by_text("已选择 2 条", exact=True)).to_be_visible()
+        self.page.get_by_role("button", name="删除所选", exact=True).click()
+        confirm = self.page.get_by_role("dialog", name="删除所选记录？", exact=True)
+        expect(confirm).to_be_visible()
+        confirm.get_by_role("button", name="删除记录", exact=True).click()
+        expect(self.row("completed")).to_have_count(0)
+        expect(self.row("failed")).to_have_count(0)
+        expect(self.row("unknown")).to_have_count(1)
+        expect(self.row("generating")).to_have_count(1)
+        self.assertEqual(self.rpc("fixture.metrics")["network"], self.network)
     def test_completed_modal_preview_actual_dimensions_download_and_focus(self):
         self.seed()
         self.records()

@@ -52,19 +52,14 @@ interruption retain uncertain charging. No automatic retry or refund claim.
 The common engine owns claims, dispatch, result persistence, recovery and cleanup.
 Image wrappers retain existing exports, record versions, directory, markers and
 public response shapes. Audio has a separate audio-jobs directory with aud-UUID
-IDs, .json records, .submitted markers, .mp3 results and 200 permanent slots.
-There is no migration or rewriting of image records. Both generators share one
-process-local two-request budget, retained through output persistence.
+IDs, .json records, .submitted markers and .mp3 results. There is no per-media record cap; records remain until an explicit deletion. There is no migration or rewriting of image records. Both generators share one process-local two-request budget, retained through output persistence.
 
 Audio private records use version 1 for panel jobs and version 2 for validated
 hashed Agent provenance. Public jobs add kind:audio and omit private provenance;
 list summaries omit text. The states remain prepared, submitting, succeeded,
 failed, unknown and result-pending. Unknown tasks are never treated as failed.
 
-Storage retains 0700 directories, 0600 files, bounded reads, no-follow/inode checks,
-exclusive publication and permanent claims. A saved MP3 with an interrupted final
-JSON write can be recovered without another provider request. Forced process exit
-may leave an uncertain claimed job; it never enables resubmission.
+Storage retains 0700 directories, 0600 files, bounded reads, no-follow/inode checks and exclusive publication. A saved MP3 with an interrupted final JSON write can be recovered without another provider request. Batch deletion removes terminal local records and their private result files; prepared, submitting, unknown and result-pending tasks remain protected. Forced process exit may leave an uncertain claimed job; it never enables resubmission.
 
 ## Audio verification and delivery
 
@@ -93,7 +88,8 @@ Additive routes:
 
 - aimedia.audio.prepare/submit/get/list/read: speech lifecycle and bounded local
   result chunks, mirroring the image routes.
-- aimedia.records.list: merge image/audio summaries newest-first, limit 400.
+- aimedia.records.list: merge image/audio/workflow summaries newest-first without a record-count cap.
+- aimedia.records.delete: confirm and delete selected terminal image, audio or workflow records plus private result files; unresolved tasks are rejected.
 - aimedia.records.get: explicit kind and jobId; add kind to image copies only.
 - aimedia.records.read: kind, jobId, expectedSha256 and offset; route only matching
   kind/ID prefixes to the corresponding store.

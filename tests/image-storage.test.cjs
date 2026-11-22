@@ -35,7 +35,6 @@ async function rawJob(f, job, bytes = JSON.stringify(job)) {
 async function seedJobs(f, count) {
   const jobs = Array.from({ length: count }, newJob);
   await Promise.all(jobs.map(async (job, index) => {
-    await fs.writeFile(path.join(f.jobs, `.slot-${index + 1}`), `${job.id}\n`, { mode: 0o600 });
     await rawJob(f, job);
   }));
 }
@@ -115,7 +114,7 @@ test("prepare, claim, save result, finish, and restart preserve jobs and private
   const detached = await restarted.readResult(job.id); detached.fill(0);
   assert.deepEqual(await restarted.readResult(job.id), bytes);
   for (const dir of [f.root, f.jobs]) assert.equal((await fs.lstat(dir)).mode & 0o777, 0o700);
-  assert.deepEqual((await fs.readdir(f.jobs)).sort(), [".slot-0", `${job.id}.json`, `${job.id}.png`, `${job.id}.submitted`]);
+  assert.deepEqual((await fs.readdir(f.jobs)).sort(), [`${job.id}.json`, `${job.id}.png`, `${job.id}.submitted`]);
   for (const name of await fs.readdir(f.jobs)) {
     const stat = await fs.lstat(path.join(f.jobs, name));
     assert.equal(stat.mode & 0o777, 0o600); assert.equal(stat.nlink, 1);
@@ -140,7 +139,7 @@ test("independent processes preserve exclusive creation and submission", { timeo
   const created = await processes(t, f, "create", [job, { ...job, requestHash: "other-process" }]);
   assert.deepEqual(created.map(item => item.result).sort(), [false, true]);
   assert.ok(created.every(item => !item.error));
-  assert.deepEqual((await fs.readdir(f.jobs)).filter(name => name.startsWith(".slot-")), [".slot-0"]);
+  assert.deepEqual((await fs.readdir(f.jobs)).filter(name => name.startsWith(".slot-")), []);
   const claims = await processes(t, f, "claim", [job, job]);
   assert.deepEqual(claims.map(item => item.result).sort(), [false, true]);
   assert.ok(claims.every(item => !item.error));
@@ -186,7 +185,7 @@ test("stale checks after temporary writes preserve jobs and prevent result publi
   await assert.rejects(f.store.readResult(job.id), bad("NOT_FOUND"));
   await assert.rejects(f.store.write(job, () => false), bad("CONFLICT"));
   await assert.rejects(f.store.write(job, () => { throw Object.assign(new Error("private path"), { code: "DISPOSED" }); }), bad("DISPOSED"));
-  assert.deepEqual((await fs.readdir(f.jobs)).sort(), [".slot-0", `${job.id}.json`, `${job.id}.submitted`]);
+  assert.deepEqual((await fs.readdir(f.jobs)).sort(), [`${job.id}.json`, `${job.id}.submitted`]);
 });
 
 test("publication exposes complete files and failures preserve the previous version", async t => {
@@ -205,7 +204,7 @@ test("publication exposes complete files and failures preserve the previous vers
   await assert.rejects(f.store.write({ ...job, status: "submitted" }, current), bad("STORAGE_ERROR"));
   failed.mock.restore();
   assert.deepEqual(await f.second().read(job.id), job);
-  assert.deepEqual((await fs.readdir(f.jobs)).sort(), [".slot-0", `${job.id}.json`]);
+  assert.deepEqual((await fs.readdir(f.jobs)).sort(), [`${job.id}.json`]);
 });
 
 test("result writes are immutable, identical retries work, and both directions enforce 16 MiB", async t => {
@@ -277,15 +276,15 @@ for (const link of ["symlink", "link"]) {
   });
 }
 
-test("job limit is enforced, overflow is rejected, and unknown names are not parsed", async t => {
+test("job records have no fixed capacity and unknown names are not parsed", async t => {
   const f = await fixture(t); const first = await save(f);
-  await seedJobs(f, 199);
+  await seedJobs(f, 204);
   await fs.writeFile(path.join(f.jobs, "not-a-job.json"), "broken");
-  assert.equal((await f.store.list()).length, 200);
+  assert.equal((await f.store.list()).length, 205);
   assert.equal(await f.store.create(first), false);
-  await assert.rejects(f.store.create(newJob()), bad("GENERATION_LIMIT"));
+  assert.equal(await f.store.create(newJob()), true);
   await rawJob(f, newJob());
-  await assert.rejects(f.store.list(), bad("GENERATION_LIMIT"));
+  assert.equal((await f.store.list()).length, 207);
 });
 
 test("interrupted publication and a legacy lock artifact do not block another job", async t => {
@@ -390,13 +389,13 @@ test("the final current check runs after filesystem preparation and immediately 
   assert.deepEqual(await f.store.read(job.id), updated);
 });
 
-test("independent creators cannot exceed the last available job slot", { timeout: 15000 }, async t => {
+test("independent creators retain exclusive creation without a capacity limit", { timeout: 15000 }, async t => {
   const f = await fixture(t); await save(f);
-  await seedJobs(f, 198);
-  const results = await processes(t, f, "create", [newJob(), newJob()]);
+  await seedJobs(f, 204);
+  const requested = newJob(), results = await processes(t, f, "create", [requested, { ...requested, requestHash: "other-process" }]);
   assert.equal(results.filter(item => item.result === true).length, 1);
-  assert.equal(results.filter(item => item.error === "GENERATION_LIMIT").length, 1);
-  assert.equal((await f.store.list()).length, 200);
+  assert.equal(results.filter(item => item.result === false).length, 1);
+  assert.equal((await f.store.list()).length, 206);
 });
 
 test("readers wait for publication cleanup without accepting or deleting persistent links", { timeout: 10000 }, async t => {
@@ -423,20 +422,6 @@ test("readers wait for publication cleanup without accepting or deleting persist
   assert.equal((await lstat(temp)).nlink, 2);
 });
 
-test("unsafe and incomplete reservations consume only their own slots", async t => {
-  const f = await fixture(t); await save(f); const job = newJob();
-  const external = path.join(f.parent, "external");
-  await fs.writeFile(external, `${job.id}\n`, { mode: 0o600 });
-  await fs.symlink(external, path.join(f.jobs, ".slot-1"));
-  await fs.link(external, path.join(f.jobs, ".slot-2"));
-  await fs.writeFile(path.join(f.jobs, ".slot-3"), "", { mode: 0o600 });
-  assert.equal(await f.second().create(job), true);
-  assert.equal(await fs.readFile(path.join(f.jobs, ".slot-4"), "utf8"), `${job.id}\n`);
-  assert.equal(await fs.readFile(external, "utf8"), `${job.id}\n`);
-  assert.equal((await fs.lstat(external)).nlink, 2);
-  assert.equal(await fs.readFile(path.join(f.jobs, ".slot-3"), "utf8"), "");
-});
-
 test("read methods leave permissions and directory entries unchanged", async t => {
   const f = await fixture(t); const job = await save(f);
   await f.store.claim(job.id); await f.store.writeResult(job.id, png(), current);
@@ -454,8 +439,8 @@ test("read methods leave permissions and directory entries unchanged", async t =
   t.mock.restoreAll();
 });
 
-test("a killed publisher affects only its slot or job at each exclusive publication boundary", { timeout: 20000 }, async t => {
-  for (const boundary of [".slot-0", ".json", ".submitted", ".png"]) {
+test("a killed publisher affects only its job at each exclusive publication boundary", { timeout: 20000 }, async t => {
+  for (const boundary of [".json", ".submitted", ".png"]) {
     const f = await fixture(t); const interrupted = newJob();
     const script = `
       const fs = require("node:fs/promises");
@@ -487,21 +472,7 @@ test("a killed publisher affects only its slot or job at each exclusive publicat
     await f.store.write({ ...job, status: "submitted" }, current);
     await f.store.writeResult(job.id, png(), current);
     assert.deepEqual(await f.second().readResult(job.id), png());
-    const stuck = path.join(f.jobs, boundary === ".slot-0" ? boundary : `${interrupted.id}${boundary}`);
+    const stuck = path.join(f.jobs, `${interrupted.id}${boundary}`);
     assert.equal((await fs.lstat(stuck)).nlink, 2);
   }
-});
-
-test("a duplicate published during the final capacity check returns false without replacement", async t => {
-  const f = await fixture(t); await save(f); await seedJobs(f, 198);
-  const requested = newJob(); const winner = { ...requested, requestHash: "concurrent-winner" };
-  const opendir = fs.opendir;
-  const scan = t.mock.method(fs, "opendir", async (...args) => {
-    await fs.writeFile(path.join(f.jobs, ".slot-199"), `${winner.id}\n`, { mode: 0o600 });
-    await rawJob(f, winner);
-    return opendir(...args);
-  });
-  assert.equal(await f.store.create(requested), false); scan.mock.restore();
-  assert.deepEqual(await f.store.read(winner.id), winner);
-  assert.equal((await f.store.list()).length, 200);
 });

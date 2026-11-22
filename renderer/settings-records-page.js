@@ -4,14 +4,14 @@
   const A = window.AIMedia;
   const invalid = () => Object.assign(new Error('INVALID_RESPONSE'), { code: 'INVALID_RESPONSE' });
   A.recordsPageController = ({ state: s, invoke }) => {
-    let alive = true, timer = null, flight = null, epoch = 0, loading = false, error = '';
+    let alive = true, timer = null, flight = null, epoch = 0, loading = false, deleting = false, error = '';
     const jobs = new Map(), reads = new Map();
     const live = () => alive && s.alive;
     const visible = () => live() && s.screen === 'records' && !document.hidden;
-    const disabled = () => s.legacyBackend || !s.data || s.busy;
+    const disabled = () => deleting || s.legacyBackend || !s.data || s.busy;
     const preview = A.resultPreviewController({ live, disabled, showing: id => records.showing(id), paint: () => { if (visible()) records.update(); },
       read: (job, offset) => invoke('aimedia.records.read', { kind: job.kind, jobId: job.id, expectedSha256: job.result.sha256, offset }) });
-    const records = A.recordsController({ state: s, disabled, refresh, getJob,
+    const records = A.recordsController({ state: s, disabled, refresh, getJob, deleteRecords,
       allJobs: () => [...jobs.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)),
       listState: () => ({ loading, error }), clearPreview: preview.clear, loadResult: preview.load, previewView: preview.view, previewKey: preview.key });
     function remember(job) {
@@ -34,7 +34,7 @@
         try {
           const result = await invoke('aimedia.records.list', {});
           if (!visible() || ticket !== epoch) return;
-          if (!Array.isArray(result?.jobs) || result.jobs.length > 400) throw invalid();
+          if (!Array.isArray(result?.jobs)) throw invalid();
           for (const job of result.jobs) remember(job);
         } catch (failure) { if (visible() && ticket === epoch) error = A.errorText(failure); }
         finally {
@@ -57,6 +57,23 @@
         } finally { reads.delete(id); }
       })();
       reads.set(id, read); return read;
+    }
+    async function deleteRecords(selected) {
+      if (!selected.length || !visible() || disabled()) return false;
+      const ticket = epoch;
+      deleting = true; error = ''; records.update();
+      try {
+        const result = await invoke('aimedia.records.delete', { records: selected.map(job => ({ kind: job.kind, jobId: job.id })), confirm: true });
+        if (!visible() || ticket !== epoch || !Array.isArray(result?.deleted) || result.deleted.length !== selected.length) return false;
+        for (const job of selected) jobs.delete(job.id);
+        return true;
+      } catch (failure) {
+        if (visible() && ticket === epoch) error = A.errorText(failure);
+        return false;
+      } finally {
+        deleting = false;
+        if (visible() && ticket === epoch) records.update();
+      }
     }
     function screenChanged() { epoch++; records.closeDetails(false); preview.clear(); schedule(); }
     function visibilityChanged() {

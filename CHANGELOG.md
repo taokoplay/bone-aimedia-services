@@ -1,4 +1,8 @@
 # Changelog
+## 0.7.7
+
+- Increase the in-plugin Canvas conversion `/object_info` response budget for large ComfyUI node libraries.
+- Preserve safe diagnostics for oversized or invalid Host responses instead of collapsing them into an unavailable generation result.
 ## 0.7.6
 
 - Add safe in-plugin Canvas-to-API conversion using ComfyUI `/object_info` metadata, link validation and widget mapping.

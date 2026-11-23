@@ -18,6 +18,9 @@ plain string. The installed PI-Desktop 0.21.0 validator requires a nonempty stri
 for command titles, while view titles already support complete locale objects.
 Changing the command title to an object would break installation on that client.
 The Host binary request capability is maintained in PI-Desktop separately from this plugin. Version 0.7.3 requires that capability for image-to-video reference uploads; older Hosts reject that upload path before network I/O while retaining other supported operations.
+## Version 0.7.7
+
+This patch increases the bounded node-metadata response budget used only by the in-plugin Canvas converter and exposes safe request diagnostics for oversized or invalid ComfyUI responses.
 ## Version 0.7.6
 
 This release keeps Canvas workflows inside the plugin flow: it reads ComfyUI `/object_info` metadata, converts links and widget values only when the mapping is complete, and otherwise leaves the workflow preview-only without saving or submitting.

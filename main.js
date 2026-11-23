@@ -36,7 +36,7 @@ function matchWorkflowInput(payload) {
 }
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
 let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, workflowMedia = null, workflowExporter = null, records = null;
-let version = "0.7.6";
+let version = "0.7.7";
 let registered = [];
 let registrationErrors = [];
 function safeFailure(failure) {

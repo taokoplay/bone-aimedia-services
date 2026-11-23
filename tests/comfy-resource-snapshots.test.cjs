@@ -17,7 +17,7 @@ const models = () => ({ checkedAt, folders: [{ name: "checkpoints", items: [{ na
 const fileInfo = (name = "nested/绘图.json") => ({ path: name, size: 100, modified: 1234, created: 1200 });
 const workflows = () => ({ checkedAt, items: [fileInfo()] });
 const definition = () => ({ "1": { class_type: "KSampler", inputs: { text: "A sunny day", seed: 1 } } });
-const detail = (name = "nested/绘图.json") => ({ path: name, checkedAt, definition: definition(), format: "api", importable: true });
+const detail = (name = "nested/绘图.json", value = definition(), format = "api", importable = true) => ({ path: name, checkedAt, contentSha256: createHash("sha256").update(JSON.stringify(value)).digest("hex"), definition: value, format, importable });
 const snapshot = () => ({ models: models(), workflows: workflows(), details: [detail()] });
 const entry = (extra = {}) => ({ profileId: "comfy", identity: profileIdentity(profile()), ...snapshot(), ...extra });
 const document = () => ({ schemaVersion: 1, entries: [entry()] });
@@ -154,7 +154,7 @@ test("patches preserve other catalogs, replace details explicitly, and clear det
 test("API, canvas and unknown details are revalidated rather than trusting persisted importability", async t => {
   const f = await fixture(t);
   for (const [value, format, importable] of [[definition(), "api", true], [{ nodes: [{ id: 1, type: "KSampler" }], links: [] }, "canvas", false], [{ description: "Preview only" }, "unknown", false]]) {
-    const item = { ...detail(), definition: value, format, importable };
+    const item = detail("nested/绘图.json", value, format, importable);
     await f.store.write(profile(), { workflows: workflows(), details: [item] }, current);
     assert.deepEqual((await f.store.read(profile())).details, [item]);
     const before = await fs.readFile(f.file, "utf8");
@@ -162,6 +162,14 @@ test("API, canvas and unknown details are revalidated rather than trusting persi
     await assert.rejects(f.store.write(profile(), { details: [{ ...item, format: "forged" }] }, current), bad("INVALID_ARGUMENT"));
     await unchanged(f, before);
   }
+});
+test("persisted workflow content hashes must match the stored definitions", async t => {
+  const f = await fixture(t);
+  await f.store.write(profile(), snapshot(), current);
+  const raw = JSON.parse(await fs.readFile(f.file, "utf8"));
+  raw.entries[0].details[0].contentSha256 = "0".repeat(64);
+  await fs.writeFile(f.file, JSON.stringify(raw));
+  await assert.rejects(f.store.read(profile()), bad("STORAGE_ERROR"));
 });
 
 test("invalidation removes only requested IDs, survives restart and avoids no-op writes", async t => {
@@ -188,8 +196,8 @@ test("secrets are never stored or hashed and known secret copies are rejected at
     { models: { checkedAt, folders: [{ name: secret, items: [] }] } },
     { models: { checkedAt, folders: [{ name: "checkpoints", items: [{ name: `${secret}.bin` }] }] } },
     { workflows: { checkedAt, items: [fileInfo(`${secret}.json`)] } },
-    { details: [{ ...detail(), definition: { description: secret }, format: "unknown", importable: false }] },
-    { details: [{ ...detail(), definition: { [secret]: "value" }, format: "unknown", importable: false }] },
+    { details: [detail("nested/绘图.json", { description: secret }, "unknown", false)] },
+    { details: [detail("nested/绘图.json", { [secret]: "value" }, "unknown", false)] },
   ];
   for (const patch of patches) await assert.rejects(f.store.write(profile(), patch, current, secrets), bad("INVALID_ARGUMENT"));
   await assert.rejects(f.store.write(profile({ id: secret }), { models: models() }, current, secrets), bad("INVALID_ARGUMENT"));
@@ -214,7 +222,7 @@ test("public credential syntax and unsafe paths cannot enter persisted resource 
     for (const patch of patches) await assert.rejects(f.store.write(profile(), patch, current), bad("INVALID_ARGUMENT"));
   }
   for (const value of [{ description: "Bearer abc" }, { password: "abc" }, { headers: {} }, { description: "api_key=abc" }, JSON.parse('{"__proto__":{}}'), { constructor: {} }]) {
-    await assert.rejects(f.store.write(profile(), { details: [{ ...detail(), definition: value, format: "unknown", importable: false }] }, current), bad("INVALID_ARGUMENT"));
+    await assert.rejects(f.store.write(profile(), { details: [detail("nested/绘图.json", value, "unknown", false)] }, current), bad("INVALID_ARGUMENT"));
   }
   await unchanged(f, before);
 });
@@ -250,7 +258,7 @@ test("disk validation checks every required field, record, timestamp and duplica
     d => { d.entries[0].models.folders[0].items = [{ name: "Bearer abc" }]; },
   ];
   const selectors = [d => d, d => d.entries[0], d => d.entries[0].models, d => d.entries[0].models.folders[0], d => d.entries[0].models.folders[0].items[0], d => d.entries[0].workflows, d => d.entries[0].workflows.items[0], d => d.entries[0].details[0]];
-  for (const select of selectors) for (const key of Object.keys(select(document()))) mutations.push(d => { delete select(d)[key]; });
+  for (const select of selectors) for (const key of Object.keys(select(document()))) if (select !== selectors[7] || key !== "contentSha256") mutations.push(d => { delete select(d)[key]; });
   for (const invalid of ["2026-02-30T12:30:00.000Z", "2026-09-26", "2026-09-26T12:30:00+00:00", "not-a-date", 1234, null]) {
     for (const select of [d => d.entries[0].models, d => d.entries[0].workflows, d => d.entries[0].details[0]]) mutations.push(d => { select(d).checkedAt = invalid; });
   }

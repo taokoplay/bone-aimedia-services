@@ -1,4 +1,10 @@
 # Changelog
+## 0.7.5
+
+- Add direct execution of synchronized ComfyUI API-format workflows without importing them into the local workflow list.
+- Expose stable remote names, IDs, paths, formats, content hashes and node-match candidates through `list_remote_workflows`; duplicate names require a path or stable ID.
+- Lock remote request identity to the synchronized workflow content hash, reject Canvas execution, and preserve single-submission behavior for image-to-video uploads.
+- Validate persisted workflow content hashes against their definitions and keep older snapshots readable by deriving missing hashes.
 
 ## 0.7.4
 

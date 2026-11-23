@@ -36,7 +36,7 @@ function matchWorkflowInput(payload) {
 }
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
 let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, workflowMedia = null, workflowExporter = null, records = null;
-let version = "0.7.2";
+let version = "0.7.5";
 let registered = [];
 let registrationErrors = [];
 function safeFailure(failure) {
@@ -68,6 +68,7 @@ function safeFailure(failure) {
     REFERENCE_CHANGED: "参考图内容与指定哈希不一致，未提交生成请求。",
     WORKFLOW_INVALID: "工作流未通过执行校验，请检查 API JSON、输出规则和绑定输入。",
     WORKFLOW_NOT_FOUND: "指定的 ComfyUI 工作流不存在或尚未同步。",
+    WORKFLOW_NAME_AMBIGUOUS: "远端工作流名称重复，请改用 list_remote_workflows 返回的路径或稳定 ID。",
     WORKFLOW_CANCELED: "ComfyUI 工作流已从等待队列移除，远程结果仍需核对。",
     BINARY_RESPONSE_UNSUPPORTED: "当前宿主不支持受限二进制响应，无法安全下载 ComfyUI 结果。",
     BINARY_REQUEST_UNSUPPORTED: "当前宿主不支持受限二进制请求，无法把参考图安全上传到 ComfyUI。",
@@ -116,6 +117,7 @@ async function workflowAccess(method, payload, ctx) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw error("INVALID_ARGUMENT", "Workflow action is required.");
   try {
     if (method === "generate") return current.generate(payload, ctx);
+    if (method === "listRemote") return { ok: true, ...(await current.listRemote(payload)) };
     if (method === "query") {
       if (payload.action === "list") return { ok: true, ...(await current.list()) };
       if (payload.action === "result") return { ok: true, ...(await current.readResult(payload)) };

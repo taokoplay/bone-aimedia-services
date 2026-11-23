@@ -17,7 +17,7 @@ const os = require("node:os");
   const plugin = require(path.join(root, "main.js"));
   try {
     await plugin.onLoad();
-    if (tools.size !== 21) throw Error("Expected sixteen compatible media tools, four ComfyUI workflow tools and one record-management tool");
+    if (tools.size !== 22) throw Error("Expected sixteen compatible media tools, five ComfyUI workflow tools and one record-management tool");
     const descriptors = [...tools.values()].map(({ name, risk, description, schema, planSafeActions }) => ({ name, risk, description, schema, ...(planSafeActions ? { planSafeActions } : {}) }));
     const match = JSON.stringify(descriptors) === JSON.stringify(manifest.contributes.agentTools);
     if (mode === "--check" && !match) throw Error("Manifest tool declarations drifted");

@@ -335,9 +335,10 @@ that call. The panel response instead uses the actual get_capabilities registrat
 state and returns false when Agent tool registration was unavailable or denied.
 list_profiles optionally filters kind and returns only public service/model
 summaries plus a credential flag and last connection-check status. list_workflows
-returns metadata, connection reference, node/binding counts; it omits definition
-text. No tool claims another plugin's installation or provider execution state.
-
+returns saved local workflow metadata; list_remote_workflows reads only synchronized
+remote snapshots and returns names, stable IDs, paths, formats, hashes and field
+matches without definitions or default inputs. No tool claims another plugin's
+installation or provider execution state.
 ## Compatibility and acceptance
 
 The imported prototype code is implementation reference only; no old private
@@ -356,8 +357,9 @@ require separate explicit acceptance and are not inferred from these tests.
 Standalone workflows may carry additive `origin`, `remote`, `executable` and
 `outputs` fields. Existing records without these fields remain local-compatible
 configuration and continue to load. A remote import stores the profile ID,
-relative path, definition SHA-256 and synchronization time. The definition is
-copied into the local workflow record before execution.
+relative path, definition SHA-256 and synchronization time. Direct remote
+execution uses a temporary in-memory definition selected by path, unique name or
+stable ID; it does not add a workflow to the local list.
 
 `outputs` contains one or more `{kind,nodeId,field,index}` selectors. The field
 is `images`, `videos` or `audio` according to the workflow kind. The workflow

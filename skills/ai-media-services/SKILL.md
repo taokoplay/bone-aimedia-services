@@ -10,7 +10,7 @@ Do not silently substitute the host GenerateImages tool or another generator.
 The panel has only Configuration and Generation Records. Configure services once,
 then generate from conversation; do not direct users to removed image/audio forms.
 Records provides local progress, image preview, speech playback and downloads.
-All sixteen tools remain available, including legacy image/discovery contracts.
+All registered media tools remain available, including legacy image/discovery contracts.
 
 ## Discover and select
 
@@ -183,16 +183,21 @@ Existing get_capabilities/list_profiles/list_workflows and prepare_image/
 submit_image/get_image_job/list_image_jobs/read_image_result remain available for
 old callers. Prefer the simplified image/audio tools in new Agent workflows.
 
-For ComfyUI, list_workflows returns local and synchronized remote API workflows
-without returning their full bodies. Use only an enabled workflow with an explicit
-image/video/audio output rule. Call generate_workflow_media with the same workflow
-ID and stable requestKey when retrying. Use workflow_job to inspect the original
-prompt ID or verified local result. Never submit a second prompt for an unknown
-job. Results are downloaded only through host binary-response support, then checked
-for the selected media signature and SHA-256 before entering Generation Records.
-Canvas workflows remain preview-only. ComfyUI queue/history browsing may include
-other clients and never establishes task ownership. Masks, environmental sound
-effects, music and remote result URLs remain unsupported.
+For ComfyUI, `list_workflows` returns saved local workflow metadata without bodies;
+`list_remote_workflows` returns only synchronized remote snapshot metadata,
+including name, stable ID, path, format, content hash and field-match candidates.
+It never fetches an unsynchronized body or returns default inputs. Use a unique
+remote name, exact relative path or returned stable ID with
+`generate_workflow_media`; duplicate names require the path or ID. Canvas remains
+preview-only. A remote API workflow runs from a temporary in-memory definition and
+is not added to the local workflow list. The request records its synchronized
+content hash, so a later synchronized change conflicts with the same request key.
+Use `workflow_job` to inspect the original prompt ID or verified local result.
+Never submit a second prompt for an unknown job. Results are downloaded only
+through host binary-response support, then checked for the selected media
+signature and SHA-256 before entering Generation Records. ComfyUI queue/history
+browsing may include other clients and never establishes task ownership. Masks,
+environmental sound effects, music and remote result URLs remain unsupported.
 Film Factory may register/adopt an exported workspace result with its own explicit
 revision and authorization rules; generation never adopts or approves media.
 See ../../docs/agent-image-contract.md, ../../docs/audio-generation-contract.md

@@ -3,7 +3,7 @@
 独立的 PI-Desktop 媒体服务插件，以 Agent 对话驱动已配置模型生图和 MiniMax 语音合成；页面用于配置服务和查看生成记录。
 
 - 插件 ID：`bone.aimedia.services`
-- 当前版本：`0.7.4`
+- 当前版本：`0.7.5`
 - 源码目录：`bone-aimedia-services`
 - 许可证：[AGPL-3.0-only](LICENSE)
 
@@ -65,17 +65,15 @@ for media discovery; model choices still require saving.
 
 ### ComfyUI 资源与工作流
 
-在 ComfyUI 连接列表选择“浏览资源”，手动同步模型目录和远端工作流；工作流
-详情会保存到插件私有快照。只有 API 格式并配置输出节点的工作流可以启用执行，
-画布格式仍只做预览。远程导入会保存来源路径、内容哈希和本地定义版本。
+在 ComfyUI 连接列表手动同步模型目录和远端工作流目录；目录清单与已读取的工作流详情保存到插件私有快照。`list_remote_workflows` 只读取这份快照，不会在 Agent 调用时隐式访问远端。只有 API 格式并配置输出节点的工作流可以执行，画布格式仍只做预览。
 
-Agent 可用 `generate_workflow_media` 执行已保存的图片、视频或音频工作流，
-并用 `workflow_job` 查询原任务。结果通过宿主受限二进制响应下载，校验类型、
-大小、签名和 SHA-256 后进入统一生成记录。重载或重复 requestKey 会查询原任务，
-不会再次提交。
+工作流有两种执行模式：保存到本地工作流列表的定义使用 `workflowId`；远端直连使用 `profileId` 配合已同步列表中的 `remotePath`、唯一 `remoteName` 或稳定 `remoteWorkflowId`。远端直连在内存中创建临时定义，不会写入本地工作流列表。远端工作流内容哈希会进入任务请求指纹；同步后正文变化时，同一 `requestKey` 会被拒绝，避免把新定义当成旧任务重提。
 
-导入 API JSON 后，面板和 `list_workflows` 会按真实节点 ID、`class_type`、标题和输入字段给出提示词、尺寸、步数、时长、FPS、首尾帧和参考图绑定建议，并列出匹配的图片、视频或音频输出节点。建议需要明确保存后才会成为可执行绑定。
+远端列表同时展示文件名、重复名提示、相对路径、稳定 ID、API／Canvas 格式、内容哈希、可执行媒体类型和字段匹配候选。重复文件名不能直接按名称执行，必须使用路径或稳定 ID。列表与匹配结果不返回默认输入值、凭据或工作流正文；需要详情时仍需在配置页明确读取。
 
+Agent 可用 `generate_workflow_media` 执行已保存的图片、视频或音频工作流，或直接执行已同步的远端 API 工作流，并用 `workflow_job` 查询原任务。结果通过宿主受限二进制响应下载，校验类型、大小、签名和 SHA-256 后进入统一生成记录。重载或重复 requestKey 会查询原任务，不会再次提交。
+
+导入 API JSON 后，面板和 `list_workflows` 会按真实节点 ID、`class_type`、标题和输入字段给出提示词、尺寸、步数、时长、FPS、首尾帧和参考图绑定建议，并列出匹配的图片、视频或音频输出节点。建议需要明确保存后才会成为本地可执行绑定。远端直连使用同一套匹配器，但不会保存建议绑定。
 图生视频使用已声明的图片绑定和 `referenceImages`。插件先通过宿主受限图片读取校验工作区文件和 SHA-256，再检查 Host 二进制请求能力，通过固定的 ComfyUI `/upload/image` 上传；校验返回的 `name`、`subfolder` 和 `type: "input"` 后，把 `subfolder/name` 内部文件引用写入克隆的 API JSON，再单次提交 `/prompt`。不支持上传、参考图变化、返回引用不安全或字段不匹配时会在提交前停止。
 
 生成记录页展示本插件自己的 GPT、MiniMax 和 ComfyUI 任务。ComfyUI 服务端历史
@@ -124,13 +122,14 @@ ComfyUI 工作流采用 API 格式 JSON，记录名称、输出媒体类型、�
 | `get_capabilities` | 返回图片／语音实际能力与约束；ready 取决于已启用模型和凭据，不代表供应商实测通过 |
 | `list_profiles` | 列出服务、模型、默认项和凭据是否已设置；可按媒体类型筛选，不返回密钥 |
 | `list_workflows` | 列出工作流名称、类型、连接引用与节点数量，不返回工作流正文或执行工作流 |
+| `list_remote_workflows` | 只读列出已同步远端工作流的名称、稳定 ID、路径、格式、哈希和字段匹配候选；不联网读取未同步正文 |
 | `prepare_image` | 本地固化请求，返回任务 ID、哈希和参数，不收费 |
 | `submit_image` | 确认后单次提交并等待本次请求结束，可能收费；同任务不会重复提交 |
 | `get_image_job` / `list_image_jobs` | 本地查询任务状态与记录，不提交远端请求 |
 | `read_image_result` | 分块读取已验证的 PNG，每次最多 64 KiB；不返回私有路径 |
 | `delete_generation_records` | 确认后批量删除已准备、已完成或已失败的本地图片、音频和 ComfyUI 记录及其私有结果文件；未知或仍在处理的任务会被拒绝 |
 
-当前共 21 个 Agent 工具。模型目录与任务查询不联网；`audio_voices` 显式查询供应商音色；`delete_generation_records` 只删除本地记录，不取消供应商任务。生成入口
+当前共 22 个 Agent 工具。模型目录与任务查询不联网；`audio_voices` 显式查询供应商音色；`delete_generation_records` 只删除本地记录，不取消供应商任务。生成入口
 在用户明确授权的范围内提交，宿主权限检查继续生效。可直接请求：
 
 > 用媒体服务中的传贝GPT、GPT Image 2，低质量 1024×1024，生成一张白底蓝色陶瓷杯；只提交一次。
@@ -173,9 +172,8 @@ Agent 调用导出工具，并在授权工作区运行其固定解码命令，�
 
 ## 安装与权限
 
-Install `dist/bone.aimedia.services-0.7.1.piplug` in plugin management, or load the development directory and review the requested permissions.
+Install `dist/bone.aimedia.services-0.7.5.piplug` in plugin management, or load the development directory and review the requested permissions.
 插件启动即注册工具与技能，不需要先打开页面。已有有效配置后即可在 Agent 模式调用。
-不保证在已运行的同一轮即时增加工具；新会话和下一轮的发现以安装客户端验收为准。
 当前安装的 PI-Desktop 0.21.0 已验证 Agent 模式下的新会话／下一轮工具发现。
 该版本的规划模式不会暴露插件声明的只读动作；插件图片块也不自动生成图片卡片。
 Agent 可通过原图导出与 Markdown 图片链接完成用户可见展示，无需打开插件页面。

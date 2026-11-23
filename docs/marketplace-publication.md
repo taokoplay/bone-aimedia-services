@@ -18,6 +18,9 @@ plain string. The installed PI-Desktop 0.21.0 validator requires a nonempty stri
 for command titles, while view titles already support complete locale objects.
 Changing the command title to an object would break installation on that client.
 The Host binary request capability is maintained in PI-Desktop separately from this plugin. Version 0.7.3 requires that capability for image-to-video reference uploads; older Hosts reject that upload path before network I/O while retaining other supported operations.
+## Version 0.7.5
+
+This release adds direct execution of synchronized remote ComfyUI API workflows without importing them into Local workflows. The new `list_remote_workflows` tool exposes stable names, IDs, paths, formats, content hashes and field-match candidates from local snapshots; duplicate names require a path or stable ID. Remote content changes conflict with the same request key, while Canvas workflows remain preview-only.
 
 ## Version 0.7.1
 

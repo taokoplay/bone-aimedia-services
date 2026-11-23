@@ -9,8 +9,9 @@ const { createImageTools } = require("./tools/image-generation.js");
 const { createAgentImageService } = require("./lib/agent-image-service.js");
 const { createAgentImageTools } = require("./tools/agent-images.js");
 const { createImageResultExporter } = require("./lib/image-result-export.js");
-const { keys, assert } = require("./lib/media-provider-schema.js");
+const { keys, assert, workflow } = require("./lib/media-provider-schema.js");
 const { resourceErrorDetails } = require("./lib/comfy-resource-errors.js");
+const { matchWorkflow } = require("./lib/comfy-workflow-matching.js");
 const { createAudioGeneration } = require("./lib/audio-generation.js");
 const { createGenerationBudget } = require("./lib/media-generation.js");
 const { createAgentAudioService } = require("./lib/agent-audio-service.js");
@@ -26,6 +27,13 @@ const { createWorkflowMediaTools } = require("./tools/workflow-media.js");
 const COMMAND_ID = "bone.aimedia.services.open";
 const VIEW_ID = "settings";
 function error(code, message) { return Object.assign(new Error(message), { code }); }
+function matchWorkflowInput(payload) {
+  keys(payload, ["kind", "definition"]);
+  assert(["image", "video", "audio"].includes(payload.kind));
+  const definition = workflow(payload.definition);
+  assert(definition && Object.keys(definition).length > 0);
+  return matchWorkflow(definition, payload.kind);
+}
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
 let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, workflowMedia = null, workflowExporter = null, records = null;
 let version = "0.7.2";
@@ -62,6 +70,9 @@ function safeFailure(failure) {
     WORKFLOW_NOT_FOUND: "指定的 ComfyUI 工作流不存在或尚未同步。",
     WORKFLOW_CANCELED: "ComfyUI 工作流已从等待队列移除，远程结果仍需核对。",
     BINARY_RESPONSE_UNSUPPORTED: "当前宿主不支持受限二进制响应，无法安全下载 ComfyUI 结果。",
+    BINARY_REQUEST_UNSUPPORTED: "当前宿主不支持受限二进制请求，无法把参考图安全上传到 ComfyUI。",
+    REQUEST_TOO_LARGE: "上传请求超过宿主允许的大小上限，未提交工作流。",
+    WORKFLOW_INPUT_REQUIRED: "工作流需要绑定图片输入，请提供对应参考图并检查首帧、尾帧或参考图字段。",
   };
   if (!Object.hasOwn(messages, failure?.code) && resourceErrorDetails(failure).code === failure?.code) {
     return error(failure.code, "资源读取未完成，请检查具体错误后重试。");
@@ -143,7 +154,7 @@ async function onLoad() {
   const references = await createImageReferenceReader({ host: pi });
   images = createImageGeneration({ getDataPath: () => dataPath, settings, request, budget, references, captureProject });
   audio = createAudioGeneration({ getDataPath: () => dataPath, settings, request, budget, captureProject });
-  workflowMedia = createComfyWorkflowGeneration({ getDataPath: () => dataPath, settings, request, getCapabilities: () => pi.net?.getCapabilities?.(), captureProject });
+  workflowMedia = createComfyWorkflowGeneration({ getDataPath: () => dataPath, settings, request, getCapabilities: () => pi.net?.getCapabilities?.(), captureProject, references });
   workflowExporter = createMediaResultExporter({ host: pi, kind: "workflow", readResult: async jobId => { const job = await workflowMedia.get({ jobId }); return workflowMedia.readResult({ jobId, expectedSha256: job.result.sha256 }); } });
   agentImages = createAgentImageService({ settings, images, exporter: createImageResultExporter({ host: pi, readResult: images.resultBytes }) });
   agentAudio = createAgentAudioService({ settings, audio, exporter: createAudioResultExporter({ host: pi, readResult: audio.resultBytes }) });
@@ -183,6 +194,7 @@ async function dispatchPanel(channel, payload) {
     case "aimedia.resourceSnapshot": return access("resourceSnapshot", payload);
     case "aimedia.syncResources": return access("syncResources", payload);
     case "aimedia.readResourceWorkflow": return access("readResourceWorkflow", payload);
+    case "aimedia.workflow.match": return matchWorkflowInput(payload);
     case "aimedia.capabilities": return capabilities(await access("read"), version, registered.includes("get_capabilities"), images?.referenceSupport);
     case "aimedia.status": return { pluginId: PLUGIN_ID, version, panelProtocol: 1, tools: [...registered], errors: [...registrationErrors], generationImplemented: true };
     case "aimedia.dreamina.status": return dreaminaCli.getDreaminaStatus(payload?.cliPath);

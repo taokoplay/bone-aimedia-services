@@ -47,3 +47,17 @@ test("ComfyUI workflows reject changed intent under the same request key", async
   const result = await engine.generate({ workflowId: "flow", kind: "audio", requestKey: "same", inputs: { prompt: "one" }, waitMs: 0 }, { mode: "agent", sessionId: "s", turnId: "t" });
   assert.equal(result.state, "unknown");
 });
+
+test("ComfyUI workflow inputs cannot contain the saved connection credential", async t => {
+  const root = await fs.mkdtemp(path.join(process.env.PI_SCRATCH_DIR || os.tmpdir(), "comfy-generation-secret-"));
+  const secret = "fixture-comfy-secret";
+  let requests = 0;
+  const settings = createMediaProviderSettings({ getDataPath: () => root, request: async () => { requests += 1; return { status: 200, bodyText: JSON.stringify({ prompt_id: "unexpected" }) }; } });
+  await settings.save({ expectedRevision: 0,
+    profiles: [{ id: "comfy", name: "Fixture", provider: "comfyui", enabled: true, baseUrl: "http://localhost:8188", authKind: "bearer", models: [], modelId: "", voice: "", format: "", cliPath: "", comfyUser: "", workflow: null, bindings: [], credentialUpdate: { action: "replace", value: secret } }],
+    defaults, workflows: [{ id: "flow", name: "Fixture", kind: "image", connectionId: "comfy", definition: { "1": { class_type: "CLIPTextEncode", inputs: { text: "default" } } }, bindings: [{ purpose: "prompt", nodeId: "1", input: "text" }], enabled: true, origin: "local", remote: null, executable: true, outputs: [{ kind: "image", nodeId: "1", field: "images", index: 0 }] }] });
+  const engine = createComfyWorkflowGeneration({ getDataPath: () => root, settings, request: async () => { requests += 1; throw Error("network must not run"); }, getCapabilities: async () => ({ binaryResponseBody: true, maxResponseBodyBytes: 16 * 1024 * 1024, fetchRedirectModes: ["error"] }) });
+  t.after(async () => { await engine.dispose(); await settings.dispose(); await fs.rm(root, { recursive: true, force: true }); });
+  await assert.rejects(engine.generate({ workflowId: "flow", kind: "image", requestKey: "secret-input", inputs: { prompt: secret }, waitMs: 0 }), { code: "INVALID_ARGUMENT" });
+  assert.equal(requests, 0);
+});

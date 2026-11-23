@@ -20,6 +20,29 @@ request key. It submits one `POST /prompt` request with a cloned prompt JSON and
 records ComfyUI's `prompt_id`. Bindings replace only declared node inputs. The
 original saved definition is never mutated.
 
+Before saving a workflow, the panel and `list_workflows` inspect the API JSON's
+actual node IDs, `class_type`, `_meta.title` and scalar `inputs`. They suggest
+bindings for prompt, negative prompt, seed, width, height, steps, duration, FPS,
+input image, first frame, last frame and up to eight reference images. Output
+candidates are matched to the selected media kind (`images`, `videos` or
+`audio`). Suggestions are advisory; only the explicitly saved `{ purpose,
+nodeId, input }` bindings and output rules are executable.
+
+For image-to-video workflows, a declared image binding and a supplied
+`referenceImages` entry start a separate upload phase before `/prompt`. The
+plugin reads only the staged workspace reference through the Host image reader,
+rechecks its SHA-256, checks the Host `binaryRequestBody` capability and sends a
+bounded multipart request to the fixed `/upload/image` endpoint through
+`pi.net.fetch`. The ComfyUI response must contain a safe `name`, `subfolder` and
+`type: "input"`; the resulting `subfolder/name` is an internal ComfyUI file
+reference, not a public URL. The plugin writes that reference into a cloned API
+prompt at the matched image input, then submits exactly one `/prompt` request.
+
+Missing binary request support, a changed reference, an unsafe upload response
+or an input mismatch stops before workflow submission. Stable hash-derived
+filenames avoid duplicate uploads within a request, and a repeated workflow ID
+and request key reads the existing job without uploading or submitting again.
+
 The job polls `GET /history/{prompt_id}`. A successful history record is projected
 through the saved output rule. The plugin constructs the `/view` URL from the
 validated filename, subfolder and type fields returned by ComfyUI. Agent input

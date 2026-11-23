@@ -17,11 +17,15 @@ One compatibility review is intentional: contributes.commands[].title remains a
 plain string. The installed PI-Desktop 0.21.0 validator requires a nonempty string
 for command titles, while view titles already support complete locale objects.
 Changing the command title to an object would break installation on that client.
-The host is not updated as part of this release.
+The Host binary request capability is maintained in PI-Desktop separately from this plugin. Version 0.7.3 requires that capability for image-to-video reference uploads; older Hosts reject that upload path before network I/O while retaining other supported operations.
 
 ## Version 0.7.1
 
 This patch makes structured Agent image-generation selection failures explicit tool errors. Multiple ready models without a saved default return `MODEL_SELECTION_REQUIRED` and do not submit a provider request; invalid explicit model references return `MODEL_UNAVAILABLE`. The source remains compatible with the published 0.7.0 workflow and tool set.
+
+## Version 0.7.3
+
+This release matches API-format ComfyUI node fields and output candidates, adds bilingual binding suggestions, and uploads scoped reference images through the Host binary request boundary before a single image-to-video prompt submission. Workflow inputs containing the saved ComfyUI credential are rejected before network I/O. The release candidate requires an executable API-format workflow and a Host with `binaryRequestBody` support for image-to-video.
 
 The official publishing gate is read from https://plugins.aiuo.net/skill.md.
 Passing its static checks does not establish translation correctness; runtime

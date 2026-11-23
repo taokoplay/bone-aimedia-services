@@ -14,7 +14,8 @@
   const providerDisplay = { openai: t('openai'), minimax: 'MiniMax', xiaomi: t('xiaomi'), comfyui: 'ComfyUI', dreamina: t('dreaminaDisplay'), libtv: 'LibTV', workflow: t('workflows') };
   const categoryForProvider = provider => provider === 'dreamina' ? 'dreamina' : provider === 'libtv' ? 'libtv' : provider === 'comfyui' ? 'connections' : 'models';
   const s = { data: null, screen: 'config', tab: 'models', addDialog: false, dialogReturnFocus: null, resourceProfile: null, draft: null, defaults: null, defaultsDirty: false, dirty: false, busy: false, notice: null, locked: false,
-    epoch: 0, editVersion: 0, importTicket: 0, importing: false, alive: true, version: null, loadError: null, legacyBackend: false, query: '', modelFilter: 'all', listFilter: 'all', credential: { action: 'preserve' }, probe: null };
+    epoch: 0, editVersion: 0, importTicket: 0, importing: false, alive: true, version: null, loadError: null, legacyBackend: false, query: '', modelFilter: 'all', listFilter: 'all', credential: { action: 'preserve' }, probe: null,
+    workflowMatch: null, workflowMatchKey: '', workflowMatchPending: false };
   const root = document.getElementById('app');
   const invoke = A.createPanelInvoke(() => window.pluginBridge, version => {
     if (!s.alive) return;
@@ -23,7 +24,8 @@
     if (badge) { badge.textContent = version || ''; badge.hidden = !version; }
     document.title = [A.i18n.scope('shell')('title'), version].filter(Boolean).join(' ');
   });
-  const C = { state: s, get tab() { return tabs.find(tab => tab.id === s.tab); }, render, touch, message, probe, canProbe, openResources, importRemote };
+  const C = { state: s, get tab() { return tabs.find(tab => tab.id === s.tab); }, render, touch, message, probe, canProbe, openResources, importRemote,
+    matchWorkflow: payload => invoke('aimedia.workflow.match', payload) };
   const remote = A.remoteController({ state: s, invoke, render, importRemote });
   const records = A.recordsPageController({ state: s, invoke });
   function touch() {
@@ -55,6 +57,7 @@
   function resetDraft() {
     s.epoch++; s.editVersion++; s.importTicket++; s.importing = false; s.resourceProfile = null; remote.reset();
     s.draft = null; s.isNew = false; s.dirty = false; s.credential = { action: 'preserve' }; s.credentialCaution = false; s.probe = null; s.jsonText = '';
+    s.workflowMatch = null; s.workflowMatchKey = ''; s.workflowMatchPending = false;
   }
   async function canLeave() {
     if (s.busy) return false;

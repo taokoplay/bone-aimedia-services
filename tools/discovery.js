@@ -1,6 +1,7 @@
 "use strict";
 
 const { isSupportedAudioModel } = require("../lib/audio-models.js");
+const { matchWorkflow } = require("../lib/comfy-workflow-matching.js");
 const { referenceConstraints, NO_REFERENCE_SUPPORT } = require("../lib/image-reference-schema.js");
 const PLUGIN_ID = "bone.aimedia.services";
 const kinds = ["image", "video", "audio"];
@@ -20,11 +21,15 @@ function profileSummary(profile) {
     ...(probe?.scope?.kind === "workflow" ? { workflowCheck: { workflowId: probe.scope.workflowId, compatible: probe.workflowCompatible ?? null, status: probe.status } } : {}) };
 }
 function workflowSummary(workflow) {
+  const match = matchWorkflow(workflow.definition, workflow.kind);
   return { id: workflow.id, name: workflow.name, kind: workflow.kind, enabled: workflow.enabled,
     connectionId: workflow.connectionId, origin: workflow.origin || "local", remotePath: workflow.remote?.path || null,
     executable: workflow.executable !== false && Array.isArray(workflow.outputs) && workflow.outputs.length > 0,
     outputKinds: [...new Set((workflow.outputs || []).map(item => item.kind))], outputCount: (workflow.outputs || []).length,
-    nodeCount: Object.keys(workflow.definition || {}).length, bindingCount: (workflow.bindings || []).length };
+    nodeCount: Object.keys(workflow.definition || {}).length, bindingCount: (workflow.bindings || []).length,
+    inputMatches: match.inputs.map(({ nodeId, input, classType, title, valueKind, purpose }) => ({ nodeId, input, classType, title, valueKind, purpose })),
+    outputCandidates: match.outputCandidates.map(({ nodeId, classType, title, field, index }) => ({ nodeId, classType, title, field, index })),
+    suggestedBindings: match.suggestedBindings, suggestedOutput: match.suggestedOutput, supportsReferenceImages: match.supportsReferenceImages };
 }
 function capabilities(snapshot, version, toolReachable = true, referenceSupport = NO_REFERENCE_SUPPORT) {
   const configured = snapshot.profiles.filter(p => p.enabled);

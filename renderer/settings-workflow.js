@@ -4,7 +4,7 @@
   const t = A.i18n.scope('workflow');
   const { h, button, input, field, picker, section, note } = A;
 
-  const purposes = { prompt: t('prompt'), negativePrompt: t('negativePrompt'), seed: t('seed'), width: t('width'), height: t('height'), steps: t('steps') };
+  const purposes = { prompt: t('prompt'), negativePrompt: t('negativePrompt'), seed: t('seed'), width: t('width'), height: t('height'), steps: t('steps'), duration: t('duration'), fps: t('fps'), inputImage: t('inputImage'), firstFrame: t('firstFrame'), lastFrame: t('lastFrame'), referenceImage1: t('referenceImage1'), referenceImage2: t('referenceImage2'), referenceImage3: t('referenceImage3'), referenceImage4: t('referenceImage4'), referenceImage5: t('referenceImage5'), referenceImage6: t('referenceImage6'), referenceImage7: t('referenceImage7'), referenceImage8: t('referenceImage8') };
   const controlLabels = { text: t('text'), number: t('number'), boolean: t('boolean'), image: t('image'), audio: t('audio'), video: t('video'), seed: t('randomSeed'), width: t('width'), height: t('height') };
 
   A.newWorkflow = () => ({
@@ -12,7 +12,7 @@
     name: '',
     kind: 'image',
     connectionId: null,
-    definition: { schemaVersion: 1, prompt: {}, bindings: [], outputs: [] },
+    definition: {},
     bindings: [],
     enabled: true
   });
@@ -58,37 +58,8 @@
     return fields;
   }
 
-  function controlsForField(field) {
-    if (field.valueKind === 'boolean') return ['boolean'];
-    if (field.valueKind === 'number') return ['number', 'seed', 'width', 'height'];
-    const controls = ['text'];
-    if (field.classType === 'LoadImage' && field.input === 'image') controls.push('image');
-    if (field.classType === 'LoadAudio' && field.input === 'audio') controls.push('audio');
-    if (field.classType === 'LoadVideo' && field.input === 'file') controls.push('video');
-    return controls;
-  }
-
-  function createFieldBinding(field, controlType) {
-    const selectedControl = controlType || (field.valueKind === 'string' ? 'text' : field.valueKind);
-    const isMedia = ['image', 'audio', 'video'].includes(selectedControl);
-    const loader = selectedControl === 'image' ? 'LoadImage' : selectedControl === 'audio' ? 'LoadAudio' : selectedControl === 'video' ? 'LoadVideo' : undefined;
-    const kind = isMedia ? selectedControl : selectedControl === 'text' ? 'text' : selectedControl === 'boolean' ? 'boolean' : 'number';
-    return {
-      key: `${field.nodeId}.${field.input}`,
-      kind,
-      nodeId: field.nodeId,
-      input: field.input,
-      ...(loader ? { loader } : {}),
-      field: {
-        classType: field.classType,
-        valueKind: field.valueKind,
-        label: field.input,
-        controlType: selectedControl,
-        required: true,
-        ...(selectedControl === 'seed' ? { min: 0, step: 1 } : {}),
-        ...(selectedControl === 'width' || selectedControl === 'height' ? { min: 1, step: 1 } : {})
-      }
-    };
+  function createFieldBinding(field, purpose) {
+    return { purpose: purpose || 'prompt', nodeId: field.nodeId, input: field.input };
   }
 
   function validateBindings(definition) {
@@ -157,6 +128,18 @@
     if (!s.selectedNodeId || !nodeIds.includes(s.selectedNodeId)) {
       s.selectedNodeId = nodeIds[0] || '';
     }
+    const workflowKey = nodeIds.length ? `${d.kind}:${JSON.stringify(promptObj)}` : '';
+    if (workflowKey && s.workflowMatchKey !== workflowKey && !s.workflowMatchPending && typeof C.matchWorkflow === 'function') {
+      s.workflowMatchKey = workflowKey; s.workflowMatchPending = true;
+      Promise.resolve().then(() => C.matchWorkflow({ kind: d.kind, definition: promptObj })).then(result => {
+        if (!s.alive || s.draft !== d || s.workflowMatchKey !== workflowKey) return;
+        s.workflowMatch = result; s.workflowMatchPending = false; C.render();
+      }).catch(() => {
+        if (!s.alive || s.draft !== d || s.workflowMatchKey !== workflowKey) return;
+        s.workflowMatch = null; s.workflowMatchPending = false; C.render();
+      });
+    }
+    const match = s.workflowMatchKey === workflowKey ? s.workflowMatch : null;
 
     const basics = h('div', { class: 'duty-card' },
       field(t('name'), input(t('name'), d.name, value => set('name', value), { maxlength: 128, placeholder: t('nameExample'), disabled: s.busy })),
@@ -209,6 +192,27 @@
         h('textarea', { id: 'workflow-json', class: 'code', 'aria-label': 'API JSON', spellcheck: 'false', placeholder: t('jsonPlaceholder'), disabled: s.busy, oninput: e => { s.jsonText = e.target.value; C.touch(); } }, s.jsonText)),
       note(t('jsonHelp')),
       file);
+    const applySuggestedBindings = () => {
+      if (!match?.suggestedBindings?.length) return;
+      d.bindings = match.suggestedBindings.map(binding => ({ ...binding }));
+      C.touch(); C.render();
+    };
+    const applyOutputCandidate = candidate => {
+      d.outputs = [{ kind: d.kind, nodeId: candidate.nodeId, field: candidate.field, index: candidate.index }];
+      d.executable = false;
+      C.touch(); C.render();
+    };
+    const matchingCard = nodeIds.length ? h('div', { class: 'duty-card', 'data-workflow-matches': '' },
+      s.workflowMatchPending && note(t('matching')),
+      match && note(t('matchSummary', { p1: match.inputs.length, p2: match.outputCandidates.length })),
+      match?.inputs?.length ? h('div', { class: 'duty-workflow-match-list' }, match.inputs.map(item => h('div', { class: 'duty-workflow-match-row' },
+        h('span', {}, `${item.title || item.classType} · ${item.nodeId}.${item.input}`),
+        h('strong', {}, purposes[item.purpose] || item.purpose)))) : match && note(t('noMatchedInputs')),
+      match?.suggestedBindings?.length ? button(t('applySuggestedBindings'), applySuggestedBindings, { class: 'fetch-supplier-btn', disabled: s.busy }) : null,
+      match?.outputCandidates?.length ? h('div', { class: 'duty-workflow-output-candidates' },
+        note(t('outputCandidates')),
+        match.outputCandidates.map(candidate => button(t('useOutputCandidate', { p1: candidate.title || candidate.classType, p2: candidate.nodeId }), () => applyOutputCandidate(candidate), { class: 'quiet', disabled: s.busy }))) : match && note(t('noMatchedOutput'))
+    ) : null;
 
     // 节点真实输入与绑定编辑器（DutyDeck WorkflowDefinitionEditor 风格）
     const allFields = listMediaWorkflowFields(promptObj);
@@ -220,11 +224,15 @@
     }), value => { s.selectedNodeId = value; C.render(); }, s.busy);
 
     const nodeFieldsList = h('div', { class: 'duty-node-fields-list' });
+    const suggestedByTarget = new Map((match?.inputs || []).map(item => [`${item.nodeId}\u0000${item.input}`, item]));
+    const purposeOptions = Object.entries(purposes).map(([value, label]) => ({ value, label }));
     if (!visibleFields.length) {
       nodeFieldsList.append(A.empty(t('noInputs'), t('selectOtherNode')));
     } else {
       visibleFields.forEach(fieldItem => {
-        const binding = (d.definition?.bindings || d.bindings || []).find(b => b.nodeId === fieldItem.nodeId && b.input === fieldItem.input);
+        const target = `${fieldItem.nodeId}\u0000${fieldItem.input}`;
+        const suggestion = suggestedByTarget.get(target);
+        const binding = (d.bindings || []).find(item => item.nodeId === fieldItem.nodeId && item.input === fieldItem.input);
         const isBound = Boolean(binding);
         const itemBox = h('div', { class: 'duty-field-item' },
           h('label', { class: 'duty-field-check-row' },
@@ -234,45 +242,35 @@
               disabled: !fieldItem.editable || s.busy,
               onchange: e => {
                 const checked = e.target.checked;
-                let bindings = d.definition?.bindings || d.bindings || [];
+                let bindings = d.bindings || [];
                 if (!checked) {
-                  bindings = bindings.filter(b => !(b.nodeId === fieldItem.nodeId && b.input === fieldItem.input));
+                  bindings = bindings.filter(item => !(item.nodeId === fieldItem.nodeId && item.input === fieldItem.input));
                 } else {
-                  bindings = [...bindings, createFieldBinding(fieldItem)];
+                  const purpose = suggestion?.purpose || 'prompt';
+                  if (bindings.some(item => item.purpose === purpose)) {
+                    e.target.checked = false;
+                    C.message(t('duplicatePurpose'), 'error');
+                    return;
+                  }
+                  bindings = [...bindings, createFieldBinding(fieldItem, purpose)];
                 }
-                if (d.definition) d.definition.bindings = bindings;
                 d.bindings = bindings;
                 C.touch(); C.render();
               }
             }),
             h('div', { class: 'duty-field-meta' },
-              h('span', { class: 'duty-field-name' }, fieldItem.input),
-              h('span', { class: 'duty-field-value' }, t('defaultValue', { p1: JSON.stringify(fieldItem.value), p2: fieldItem.reason ? ` · ${fieldItem.reason}` : '' })))
-          )
+              h('span', { class: 'duty-field-name' }, `${fieldItem.nodeTitle} · ${fieldItem.input}`),
+              h('span', { class: 'duty-field-value' }, t('defaultValue', { p1: JSON.stringify(fieldItem.value), p2: fieldItem.reason ? ` · ${fieldItem.reason}` : '' })),
+              suggestion && h('span', { class: 'duty-field-suggestion' }, t('matchedPurpose', { p1: purposes[suggestion.purpose] || suggestion.purpose })))
+          ),
+          isBound && field(t('bindingPurposeLabel'), picker(t('bindingPurpose', { p1: fieldItem.input }), binding.purpose, purposeOptions, value => {
+            if ((d.bindings || []).some(item => item !== binding && item.purpose === value)) {
+              C.message(t('duplicatePurpose'), 'error');
+              return;
+            }
+            binding.purpose = value; C.touch(); C.render();
+          }, s.busy))
         );
-
-        if (binding?.field) {
-          const controls = controlsForField(fieldItem);
-          const metaGrid = h('div', { class: 'duty-binding-config-grid' },
-            field(t('fieldKey'), input(t('fieldKey'), binding.key, val => { binding.key = val; C.touch(); }, { disabled: s.busy })),
-            field(t('label'), input(t('label'), binding.field.label, val => { binding.field.label = val; C.touch(); }, { disabled: s.busy })),
-            field(t('controlType'), picker(t('controlType'), binding.field.controlType, controls.map(c => ({ value: c, label: controlLabels[c] || c })), val => {
-              const recreated = createFieldBinding(fieldItem, val);
-              Object.assign(binding, recreated, { key: binding.key });
-              binding.field.label = fieldItem.input;
-              C.touch(); C.render();
-            }, s.busy)),
-            h('label', { class: 'inline-checkbox-label' },
-              h('input', {
-                type: 'checkbox',
-                checked: binding.field.required,
-                disabled: s.busy,
-                onchange: e => { binding.field.required = e.target.checked; C.touch(); }
-              }),
-              t('required'))
-          );
-          itemBox.append(metaGrid);
-        }
         nodeFieldsList.append(itemBox);
       });
     }
@@ -300,18 +298,25 @@
       C.touch(); C.render();
     }, { class: 'fetch-supplier-btn', disabled: s.busy || (d.bindings && d.bindings.length >= 12) });
 
-    const outputRule = d.outputs?.[0] || { kind: d.kind || 'image', nodeId: '', field: ({ image: 'images', video: 'videos', audio: 'audio' })[d.kind || 'image'] };
+    const outputRule = d.outputs?.[0] || { kind: d.kind || 'image', nodeId: '', field: ({ image: 'images', video: 'videos', audio: 'audio' })[d.kind || 'image'], index: 0 };
     const outputFields = { image: 'images', video: 'videos', audio: 'audio' };
-    const setOutput = (key, value) => { const next = { ...outputRule, kind: d.kind, field: outputFields[d.kind], [key]: value }; d.outputs = value || key === 'nodeId' && !value ? [] : [next]; d.executable = d.outputs.length > 0; C.touch(); C.render(); };
+    const setOutput = (key, value) => {
+      const next = { ...outputRule, kind: d.kind, field: outputFields[d.kind], [key]: key === 'index' ? Number(value) : value };
+      if (!next.nodeId) { d.outputs = []; d.executable = false; }
+      else d.outputs = [next];
+      C.touch(); C.render();
+    };
     const outputCard = h('div', { class: 'duty-card' },
       field(t('outputKind'), picker(t('outputKind'), outputRule.kind, Object.entries(A.kinds).filter(([key]) => ['image', 'video', 'audio'].includes(key)).map(([value, label]) => ({ value, label })), value => { d.kind = value; setOutput('kind', value); }, s.busy)),
       field(t('outputNode'), input(t('outputNode'), outputRule.nodeId || '', value => setOutput('nodeId', value.trim()), { maxlength: 128, placeholder: t('outputNodeExample'), disabled: s.busy })),
+      field(t('outputIndex'), input(t('outputIndex'), String(outputRule.index ?? 0), value => setOutput('index', value), { type: 'number', min: 0, max: 99, step: 1, disabled: s.busy })),
       note(t('outputHelp')),
-      A.toggle(t('executable'), d.executable === true && d.outputs?.length > 0, value => { if (value && !(d.outputs || []).length) { message(t('outputNodeRequired'), 'error'); return; } d.executable = value; C.touch(); C.render(); }, s.busy));
+      A.toggle(t('executable'), d.executable === true && d.outputs?.length > 0, value => { if (value && !(d.outputs || []).length) { C.message(t('outputNodeRequired'), 'error'); return; } d.executable = value; C.touch(); C.render(); }, s.busy));
 
     const view = h('div', { class: 'duty-editor' },
       section(t('basics'), basics),
       section('ComfyUI API JSON', definitionCard, jsonActions),
+      matchingCard,
       section(t('outputRule'), outputCard),
       nodeIds.length ? section(t('nodeParameters'), nodeInspectionCard) : null,
       section(t('bindings'), legacyBindings, addBindingBtn),

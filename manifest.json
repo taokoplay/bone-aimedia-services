@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "bone.aimedia.services",
   "name": "AI媒体生成服务",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Agent-driven GPT images, scoped reference-image edits, MiniMax speech and validated ComfyUI workflow media, with encrypted configuration, project-aware records and original-file export.",
   "author": "taokoplay",
   "license": "AGPL-3.0-only",
@@ -568,7 +568,7 @@
       {
         "name": "generate_workflow_media",
         "risk": "high",
-        "description": "使用已保存并显式启用的 ComfyUI API 工作流生成一项图片、视频或音频。仅提交一次，稳定 requestKey 重试不会重复提交；结果未知时必须查询原任务。",
+        "description": "使用已保存并显式启用的 ComfyUI API 工作流生成一项图片、视频或音频；图生视频可先将已暂存参考图上传到 ComfyUI，再把返回的安全文件引用填入已声明的图片绑定。仅提交一次，稳定 requestKey 重试不会重复提交；结果未知时必须查询原任务。",
         "schema": {
           "type": "object",
           "properties": {
@@ -589,6 +589,31 @@
             },
             "inputs": {
               "type": "object"
+            },
+            "referenceImages": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "description": "Ordered local reference images staged under bone-media/references/. Each SHA-256 must match the original bytes. The plugin sends validated images internally; never paste image Base64 into tool arguments.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              }
             },
             "waitMs": {
               "type": "integer",

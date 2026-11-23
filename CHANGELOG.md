@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.3
+
+- Match ComfyUI API-format node fields and output candidates for prompt, dimensions, sampling, timing, frame and reference-image bindings.
+- Add guarded image-to-video reference upload through the Host binary request contract; validate the returned ComfyUI input reference before writing it into a cloned prompt.
+- Reject workflow inputs that contain the saved ComfyUI credential, preserve single-submission idempotency, and expose the new matching flow in the bilingual settings page.
+
 ## 0.7.2
 
 - Remove the fixed per-media and unified generation-record caps; existing records remain readable and new records are retained until explicitly deleted.

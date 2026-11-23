@@ -3,7 +3,7 @@
 独立的 PI-Desktop 媒体服务插件，以 Agent 对话驱动已配置模型生图和 MiniMax 语音合成；页面用于配置服务和查看生成记录。
 
 - 插件 ID：`bone.aimedia.services`
-- 当前版本：`0.7.2`
+- 当前版本：`0.7.3`
 - 源码目录：`bone-aimedia-services`
 - 许可证：[AGPL-3.0-only](LICENSE)
 
@@ -74,6 +74,10 @@ Agent 可用 `generate_workflow_media` 执行已保存的图片、视频或音�
 大小、签名和 SHA-256 后进入统一生成记录。重载或重复 requestKey 会查询原任务，
 不会再次提交。
 
+导入 API JSON 后，面板和 `list_workflows` 会按真实节点 ID、`class_type`、标题和输入字段给出提示词、尺寸、步数、时长、FPS、首尾帧和参考图绑定建议，并列出匹配的图片、视频或音频输出节点。建议需要明确保存后才会成为可执行绑定。
+
+图生视频使用已声明的图片绑定和 `referenceImages`。插件先通过宿主受限图片读取校验工作区文件和 SHA-256，再检查 Host 二进制请求能力，通过固定的 ComfyUI `/upload/image` 上传；校验返回的 `name`、`subfolder` 和 `type: "input"` 后，把 `subfolder/name` 内部文件引用写入克隆的 API JSON，再单次提交 `/prompt`。不支持上传、参考图变化、返回引用不安全或字段不匹配时会在提交前停止。
+
 生成记录页展示本插件自己的 GPT、MiniMax 和 ComfyUI 任务。ComfyUI 服务端历史
 和队列仍是独立的只读检查数据，不会被认领为插件任务。
 
@@ -100,8 +104,9 @@ API Key／Bearer Token 使用插件内的 AES-256-GCM 加密，和配置一起�
 - 数据损坏时报告错误，不静默重置或删除旧配置。
 
 ComfyUI 工作流采用 API 格式 JSON，记录名称、输出媒体类型、启用状态、连接引用和
-输入绑定。工作流最多64项，每份定义最多200KiB／300节点。支持的绑定用途为
-`prompt`、`negativePrompt`、`seed`、`width`、`height`、`steps`，必须指向真实节点输入。
+输入绑定。工作流最多64项，每份定义最多200KiB／300节点。匹配器支持的绑定用途为
+`prompt`、`negativePrompt`、`seed`、`width`、`height`、`steps`、`duration`、`fps`、
+`inputImage`、`firstFrame`、`lastFrame` 和 `referenceImage1` 至 `referenceImage8`，必须指向真实节点输入。
 被工作流引用的连接不能直接删除；先明确解除引用或删除对应工作流。
 
 ## Agent 工具

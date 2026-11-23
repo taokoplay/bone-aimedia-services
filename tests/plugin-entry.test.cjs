@@ -203,3 +203,17 @@ test("ComfyUI resource browsing through the real bridge is explicit, bounded and
     assert.equal(requests.length, count);
   } finally { pi.net = previous; }
 });
+
+test("panel workflow matching uses API node fields and returns safe binding suggestions", async () => {
+  const result = await plugin.onPanelInvoke("aimedia.workflow.match", { kind: "video", definition: {
+    "1": { class_type: "CLIPTextEncode", _meta: { title: "正向提示词" }, inputs: { text: "private default" } },
+    "2": { class_type: "LoadImage", _meta: { title: "首帧" }, inputs: { image: "placeholder.png" } },
+    "3": { class_type: "VHS_VideoCombine", inputs: { filename_prefix: "result" } },
+  } });
+  assert.deepEqual(result.suggestedBindings, [
+    { purpose: "prompt", nodeId: "1", input: "text" },
+    { purpose: "firstFrame", nodeId: "2", input: "image" },
+  ]);
+  assert.deepEqual(result.suggestedOutput, { kind: "video", nodeId: "3", field: "videos", index: 0 });
+  assert.equal(JSON.stringify(result).includes("private default"), false);
+});

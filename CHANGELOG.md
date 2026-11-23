@@ -1,4 +1,8 @@
 # Changelog
+## 0.7.9
+
+- Fall back to bounded per-node ComfyUI `/object_info/<class>` reads when the full node catalog returns a server error, while preserving complete mapping validation.
+- Persist preflight workflow failures as local `wf-*` records with `not-submitted` or `unknown` charging state, and reuse them for stable request keys without duplicate reads or prompts.
 ## 0.7.8
 
 - Fix remote ComfyUI workflow reads by preserving path separators in `/userdata` requests while encoding each path segment safely.

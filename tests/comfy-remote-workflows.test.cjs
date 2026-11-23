@@ -146,10 +146,9 @@ test("remote Canvas workflow converts through node metadata before one prompt", 
     const pathname = new URL(input.url).pathname;
     if (pathname === "/userdata") return response([{ path: "canvas.json", size: 100, modified: 1, created: 1 }]);
     if (pathname.startsWith("/userdata/") && workflowPath(pathname) === "canvas.json") return response(canvasDefinition);
-    if (pathname === "/object_info") return response({
-      LoadImage: { input: { required: { image: ["STRING", { default: "input.png" }] } } },
-      SaveImage: { input: { required: { images: ["IMAGE"], filename_prefix: ["STRING", { default: "fixture" }] } } },
-    });
+    if (pathname === "/object_info") return { status: 500, bodyText: "full node catalog unavailable" };
+    if (pathname === "/object_info/LoadImage") return response({ LoadImage: { input: { required: { image: ["STRING", { default: "input.png" }] } } } });
+    if (pathname === "/object_info/SaveImage") return response({ SaveImage: { input: { required: { images: ["IMAGE"], filename_prefix: ["STRING", { default: "fixture" }] } } } });
     if (pathname === "/upload/image") return response({ name: "frame.png", subfolder: "bone-aimedia", type: "input" });
     if (pathname === "/prompt") { prompts += 1; const body = JSON.parse(input.body); assert.equal(body.prompt["1"].inputs.image, "bone-aimedia/frame.png"); return response({ prompt_id: "canvas-prompt-1" }); }
     if (pathname === "/history/canvas-prompt-1") return response({ "canvas-prompt-1": { status: { status_str: "success", completed: true }, outputs: { "2": { images: [{ filename: "result.png", subfolder: "", type: "output" }] } } } });
@@ -162,6 +161,29 @@ test("remote Canvas workflow converts through node metadata before one prompt", 
   t.after(() => engine.dispose());
   const job = await engine.generate({ profileId: "comfy", remotePath: "canvas.json", kind: "image", requestKey: "canvas-1", inputs: {}, referenceImages: [{ path: "bone-media/references/frame.png", sha256: frameSha256 }], waitMs: 1000 });
   assert.equal(job.state, "succeeded"); assert.equal(prompts, 1);
+});
+
+test("remote Canvas preflight failures are recorded without prompt submission", async t => {
+  let objectInfoCalls = 0;
+  const f = await fixture(t, async input => {
+    const pathname = new URL(input.url).pathname;
+    if (pathname === "/userdata") return response([{ path: "canvas.json", size: 100, modified: 1, created: 1 }]);
+    if (pathname.startsWith("/userdata/") && workflowPath(pathname) === "canvas.json") return response(canvasDefinition);
+    if (pathname === "/object_info" || pathname.startsWith("/object_info/")) { objectInfoCalls += 1; return { status: 500, bodyText: "node catalog unavailable" }; }
+    if (pathname === "/prompt") throw Error("prompt must not be submitted");
+    throw Error(`Unexpected route ${pathname}`);
+  });
+  await syncWorkflows(f.service);
+  const engine = createComfyWorkflowGeneration({ getDataPath: () => f.root, settings: f.service, request: f.request, getCapabilities: async () => binaryCapabilities() });
+  t.after(() => engine.dispose());
+  const input = { profileId: "comfy", remotePath: "canvas.json", kind: "image", requestKey: "canvas-preflight-1", inputs: {}, waitMs: 0 };
+  await assert.rejects(engine.generate(input), { code: "HTTP_ERROR" });
+  const listed = await engine.list();
+  assert.equal(listed.jobs.length, 1);
+  assert.equal(listed.jobs[0].state, "failed"); assert.equal(listed.jobs[0].charging, "not-submitted"); assert.equal(listed.jobs[0].error.code, "HTTP_ERROR"); assert.equal(listed.jobs[0].remotePromptId, undefined);
+  const callsAfterFailure = objectInfoCalls;
+  const retry = await engine.generate(input);
+  assert.equal(retry.id, listed.jobs[0].id); assert.equal(retry.state, "failed"); assert.equal(objectInfoCalls, callsAfterFailure);
 });
 
 test("remote image-to-video uploads the staged reference before one prompt submission", async t => {

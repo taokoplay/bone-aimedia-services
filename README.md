@@ -3,7 +3,7 @@
 独立的 PI-Desktop 媒体服务插件，以 Agent 对话驱动已配置模型生图和 MiniMax 语音合成；页面用于配置服务和查看生成记录。
 
 - 插件 ID：`bone.aimedia.services`
-- 当前版本：`0.7.5`
+- 当前版本：`0.7.6`
 - 源码目录：`bone-aimedia-services`
 - 许可证：[AGPL-3.0-only](LICENSE)
 
@@ -65,13 +65,13 @@ for media discovery; model choices still require saving.
 
 ### ComfyUI 资源与工作流
 
-在 ComfyUI 连接列表手动同步模型目录和远端工作流目录；目录清单与已读取的工作流详情保存到插件私有快照。`list_remote_workflows` 只读取这份快照，不会在 Agent 调用时隐式访问远端。只有 API 格式并配置输出节点的工作流可以执行，画布格式仍只做预览。
+在 ComfyUI 连接列表手动同步模型目录和远端工作流目录；目录清单与已读取的工作流详情保存到插件私有快照。`list_remote_workflows` 只读取这份快照，不会在 Agent 调用时隐式访问远端。API 格式工作流可直接执行；Canvas 格式会由插件读取 `/object_info`，在完整映射所有连线和 widgets 时转换为临时 API prompt，无法证明安全时停止且不保存。
 
 工作流有两种执行模式：保存到本地工作流列表的定义使用 `workflowId`；远端直连使用 `profileId` 配合已同步列表中的 `remotePath`、唯一 `remoteName` 或稳定 `remoteWorkflowId`。远端直连在内存中创建临时定义，不会写入本地工作流列表。远端工作流内容哈希会进入任务请求指纹；同步后正文变化时，同一 `requestKey` 会被拒绝，避免把新定义当成旧任务重提。
 
 远端列表同时展示文件名、重复名提示、相对路径、稳定 ID、API／Canvas 格式、内容哈希、可执行媒体类型和字段匹配候选。重复文件名不能直接按名称执行，必须使用路径或稳定 ID。列表与匹配结果不返回默认输入值、凭据或工作流正文；需要详情时仍需在配置页明确读取。
 
-Agent 可用 `generate_workflow_media` 执行已保存的图片、视频或音频工作流，或直接执行已同步的远端 API 工作流，并用 `workflow_job` 查询原任务。结果通过宿主受限二进制响应下载，校验类型、大小、签名和 SHA-256 后进入统一生成记录。重载或重复 requestKey 会查询原任务，不会再次提交。
+Agent 可用 `generate_workflow_media` 执行已保存的图片、视频或音频工作流，或直接执行已同步的远端 API／可安全转换的 Canvas 工作流，并用 `workflow_job` 查询原任务。结果通过宿主受限二进制响应下载，校验类型、大小、签名和 SHA-256 后进入统一生成记录。重载或重复 requestKey 会查询原任务，不会再次提交。
 
 导入 API JSON 后，面板和 `list_workflows` 会按真实节点 ID、`class_type`、标题和输入字段给出提示词、尺寸、步数、时长、FPS、首尾帧和参考图绑定建议，并列出匹配的图片、视频或音频输出节点。建议需要明确保存后才会成为本地可执行绑定。远端直连使用同一套匹配器，但不会保存建议绑定。
 图生视频使用已声明的图片绑定和 `referenceImages`。插件先通过宿主受限图片读取校验工作区文件和 SHA-256，再检查 Host 二进制请求能力，通过固定的 ComfyUI `/upload/image` 上传；校验返回的 `name`、`subfolder` 和 `type: "input"` 后，把 `subfolder/name` 内部文件引用写入克隆的 API JSON，再单次提交 `/prompt`。不支持上传、参考图变化、返回引用不安全或字段不匹配时会在提交前停止。
@@ -172,7 +172,7 @@ Agent 调用导出工具，并在授权工作区运行其固定解码命令，�
 
 ## 安装与权限
 
-Install `dist/bone.aimedia.services-0.7.5.piplug` in plugin management, or load the development directory and review the requested permissions.
+Install `dist/bone.aimedia.services-0.7.6.piplug` in plugin management, or load the development directory and review the requested permissions.
 插件启动即注册工具与技能，不需要先打开页面。已有有效配置后即可在 Agent 模式调用。
 当前安装的 PI-Desktop 0.21.0 已验证 Agent 模式下的新会话／下一轮工具发现。
 该版本的规划模式不会暴露插件声明的只读动作；插件图片块也不自动生成图片卡片。

@@ -20,7 +20,10 @@ const videoDefinition = text => ({
   "2": { class_type: "CLIPTextEncode", inputs: { text } },
   "3": { class_type: "SaveVideo", inputs: { filename_prefix: "fixture" } },
 });
-const canvasDefinition = { nodes: [{ id: 1, type: "CLIPTextEncode", widgets_values: ["preview only"] }], links: [] };
+const canvasDefinition = { nodes: [
+  { id: 1, type: "LoadImage", inputs: [{ name: "image", link: null }], widgets_values: ["input.png"] },
+  { id: 2, type: "SaveImage", inputs: [{ name: "images", link: 1 }], widgets_values: ["fixture"] },
+], links: [[1, 1, 0, 2, 0, "IMAGE"]] };
 const response = body => ({ status: 200, bodyText: JSON.stringify(body), headers: {} });
 const videoBytes = Buffer.from([0, 0, 0, 0, 0x66, 0x74, 0x79, 0x70, 0, 0, 0, 0]);
 function workflowPath(pathname) { return decodeURIComponent(pathname.slice("/userdata/".length)).replace(/^workflows\//, ""); }
@@ -134,20 +137,31 @@ test("remote API workflow executes without a local workflow and locks the synchr
   assert.equal(promptCalls, 1, "changed content must conflict before a second prompt");
 });
 
-test("remote canvas workflows remain preview-only and never submit", async t => {
+test("remote Canvas workflow converts through node metadata before one prompt", async t => {
+  const frame = png(1, 1);
   let prompts = 0;
+  const resultBytes = png(2, 2);
+  const frameSha256 = createHash("sha256").update(frame).digest("hex");
   const f = await fixture(t, async input => {
     const pathname = new URL(input.url).pathname;
     if (pathname === "/userdata") return response([{ path: "canvas.json", size: 100, modified: 1, created: 1 }]);
     if (pathname.startsWith("/userdata/") && workflowPath(pathname) === "canvas.json") return response(canvasDefinition);
-    if (pathname === "/prompt") { prompts += 1; return response({ prompt_id: "unexpected" }); }
+    if (pathname === "/object_info") return response({
+      LoadImage: { input: { required: { image: ["STRING", { default: "input.png" }] } } },
+      SaveImage: { input: { required: { images: ["IMAGE"], filename_prefix: ["STRING", { default: "fixture" }] } } },
+    });
+    if (pathname === "/upload/image") return response({ name: "frame.png", subfolder: "bone-aimedia", type: "input" });
+    if (pathname === "/prompt") { prompts += 1; const body = JSON.parse(input.body); assert.equal(body.prompt["1"].inputs.image, "bone-aimedia/frame.png"); return response({ prompt_id: "canvas-prompt-1" }); }
+    if (pathname === "/history/canvas-prompt-1") return response({ "canvas-prompt-1": { status: { status_str: "success", completed: true }, outputs: { "2": { images: [{ filename: "result.png", subfolder: "", type: "output" }] } } } });
+    if (pathname === "/view") return { status: 200, bodyBase64: resultBytes.toString("base64"), byteLength: resultBytes.length, contentType: "image/png" };
     throw Error(`Unexpected route ${pathname}`);
   });
   await syncWorkflows(f.service);
-  const engine = createComfyWorkflowGeneration({ getDataPath: () => f.root, settings: f.service, request: f.request, getCapabilities: async () => binaryCapabilities() });
+  const references = { load: async specs => { assert.deepEqual(specs, [{ path: "bone-media/references/frame.png", sha256: frameSha256 }]); return { images: [{ mimeType: "image/png", bytes: frame, sha256: frameSha256 }] }; } };
+  const engine = createComfyWorkflowGeneration({ getDataPath: () => f.root, settings: f.service, request: f.request, references, getCapabilities: async () => binaryCapabilities(true) });
   t.after(() => engine.dispose());
-  await assert.rejects(engine.generate({ profileId: "comfy", remotePath: "canvas.json", kind: "image", requestKey: "canvas-1", inputs: {}, waitMs: 0 }), error => error.code === "WORKFLOW_INVALID" && error.message === "Remote workflow must be exported in API format before execution.");
-  assert.equal(prompts, 0);
+  const job = await engine.generate({ profileId: "comfy", remotePath: "canvas.json", kind: "image", requestKey: "canvas-1", inputs: {}, referenceImages: [{ path: "bone-media/references/frame.png", sha256: frameSha256 }], waitMs: 1000 });
+  assert.equal(job.state, "succeeded"); assert.equal(prompts, 1);
 });
 
 test("remote image-to-video uploads the staged reference before one prompt submission", async t => {

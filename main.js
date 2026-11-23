@@ -36,7 +36,7 @@ function matchWorkflowInput(payload) {
 }
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
 let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, workflowMedia = null, workflowExporter = null, records = null;
-let version = "0.7.5";
+let version = "0.7.6";
 let registered = [];
 let registrationErrors = [];
 function safeFailure(failure) {
@@ -197,6 +197,7 @@ async function dispatchPanel(channel, payload) {
     case "aimedia.syncResources": return access("syncResources", payload);
     case "aimedia.readResourceWorkflow": return access("readResourceWorkflow", payload);
     case "aimedia.workflow.match": return matchWorkflowInput(payload);
+    case "aimedia.convertResourceWorkflow": return access("convertResourceWorkflow", payload);
     case "aimedia.capabilities": return capabilities(await access("read"), version, registered.includes("get_capabilities"), images?.referenceSupport);
     case "aimedia.status": return { pluginId: PLUGIN_ID, version, panelProtocol: 1, tools: [...registered], errors: [...registrationErrors], generationImplemented: true };
     case "aimedia.dreamina.status": return dreaminaCli.getDreaminaStatus(payload?.cliPath);

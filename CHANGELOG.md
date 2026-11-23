@@ -1,4 +1,9 @@
 # Changelog
+## 0.7.6
+
+- Add safe in-plugin Canvas-to-API conversion using ComfyUI `/object_info` metadata, link validation and widget mapping.
+- Allow Canvas workflows to enter the existing local import review or remote temporary execution flow when every mapping is proven; unresolved, bypassed or missing nodes remain blocked without saving or submitting.
+- Add Canvas conversion diagnostics, reference-image upload coverage and settings/browser regression coverage.
 ## 0.7.5
 
 - Add direct execution of synchronized ComfyUI API-format workflows without importing them into the local workflow list.

@@ -3,9 +3,11 @@
 ## Scope
 
 The media service executes one image, video or audio output from either a saved
-local ComfyUI API-format workflow or a synchronized remote API-format workflow.
-Canvas workflows remain preview-only. Local execution requires an enabled saved
-workflow, a bound ComfyUI connection and an explicit output rule.
+local ComfyUI API-format workflow or a synchronized remote workflow. Canvas
+workflows may be converted inside the plugin only when `/object_info` metadata
+proves every link and widget mapping; uncertain or bypassed nodes remain
+preview-only. Local execution requires an enabled saved workflow, a bound ComfyUI
+connection and an explicit output rule.
 
 Remote execution requires a previously synchronized workflow directory. The
 `list_remote_workflows` action reads only the private snapshot; it never fetches
@@ -18,7 +20,8 @@ the workflow to the local workflow list.
 Importing a remote API workflow remains an explicit panel action. It stores the
 definition locally with `origin: "comfyui-remote"`, the source profile, relative
 path, content SHA-256 and sync time. A direct remote task creates a temporary
-definition in memory and never changes the saved workflow list.
+definition in memory and never changes the saved workflow list. Canvas conversion
+uses the same temporary boundary and never overwrites the original Canvas JSON.
 
 ## Submission lifecycle
 

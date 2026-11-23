@@ -25,8 +25,9 @@
     document.title = [A.i18n.scope('shell')('title'), version].filter(Boolean).join(' ');
   });
   const C = { state: s, get tab() { return tabs.find(tab => tab.id === s.tab); }, render, touch, message, probe, canProbe, openResources, importRemote,
+    convertResourceWorkflow: payload => invoke('aimedia.convertResourceWorkflow', payload),
     matchWorkflow: payload => invoke('aimedia.workflow.match', payload) };
-  const remote = A.remoteController({ state: s, invoke, render, importRemote });
+  const remote = A.remoteController({ state: s, invoke, render, importRemote, convertResourceWorkflow: payload => invoke('aimedia.convertResourceWorkflow', payload) });
   const records = A.recordsPageController({ state: s, invoke });
   function touch() {
     s.dirty = true; s.editVersion++;

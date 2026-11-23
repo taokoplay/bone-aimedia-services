@@ -356,10 +356,11 @@ require separate explicit acceptance and are not inferred from these tests.
 
 Standalone workflows may carry additive `origin`, `remote`, `executable` and
 `outputs` fields. Existing records without these fields remain local-compatible
-configuration and continue to load. A remote import stores the profile ID,
 relative path, definition SHA-256 and synchronization time. Direct remote
 execution uses a temporary in-memory definition selected by path, unique name or
-stable ID; it does not add a workflow to the local list.
+stable ID; it does not add a workflow to the local list. Canvas definitions may be
+converted in the plugin after `/object_info` metadata proves every link and widget
+mapping; uncertain conversions remain preview-only and do not submit.
 
 `outputs` contains one or more `{kind,nodeId,field,index}` selectors. The field
 is `images`, `videos` or `audio` according to the workflow kind. The workflow

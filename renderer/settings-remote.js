@@ -40,6 +40,26 @@
     function refresh() {
       if (!updateInline?.()) C.render();
     }
+    async function importDetail(detail, path, profileId) {
+      let definition = detail.definition;
+      if (detail.format === 'canvas') {
+        let converted;
+        try { converted = await C.convertResourceWorkflow({ profileId, expectedRevision: s.data.revision, path }); }
+        catch (error) {
+          r.error = `${t('canvasConversionFailed')} ${error?.message || ''}`.trim();
+          refresh();
+          return false;
+        }
+        if (!converted.ok) {
+          r.error = `${t('canvasConversionFailed')} ${converted.issues?.map(item => item.message).join(' ') || ''}`.trim();
+          refresh();
+          return false;
+        }
+        definition = converted.definition;
+      }
+      await C.importRemote(definition, path, profileId, detail.contentSha256);
+      return true;
+    }
     function localResult(items, checkedAt, params = {}) {
       return { items, checkedAt, total: items.length, offset: 0, limit: items.length, truncated: false, fresh: true, source: 'local', params };
     }
@@ -161,7 +181,7 @@
         if (detail) panel.append(section(t('workflowDetails'), h('div', { class: 'card' }, note(`${r.path} · ${detail.format === 'api' ? t('apiFormat') : detail.format === 'canvas' ? t('canvasFormat') : t('unknownFormat')}${detail.fresh ? '' : t('staleSuffix')}`),
           detail.format !== 'api' && note(t('canvasHelp')),
           h('details', { class: 'definition' }, h('summary', {}, t('viewDefinition')), h('pre', { class: 'code' }, JSON.stringify(detail.definition, null, 2))),
-          h('div', { class: 'block' }, button(t('importDraft'), async () => { await C.importRemote(detail.definition, r.path, r.profileId, detail.contentSha256); }, { disabled: blocked() || !detail.fresh || detail.format !== 'api' || !detail.importable || s.data.workflows.length >= 64 }),
+          h('div', { class: 'block' }, button(detail.format === 'canvas' ? t('convertAndImport') : t('importDraft'), async () => { await importDetail(detail, r.path, r.profileId); }, { disabled: blocked() || !detail.fresh || !['api', 'canvas'].includes(detail.format) || s.data.workflows.length >= 64 }),
             note(t('draftHelp'))))));
       }
       view.append(panel); return view;
@@ -256,12 +276,8 @@
               await snapshotRequest('aimedia.readResourceWorkflow', { path: item.path });
               const detail = r.results.workflow;
               if (!s.draft || s.draft !== d || r !== viewState || r.tab !== 'workflows' || !detail?.fresh || detail.params.path !== item.path) return;
-              if (!detail.importable || detail.format !== 'api') {
-                r.error = detail.format === 'canvas' ? t('canvasImportBlocked') : t('workflowInvalid');
-                refresh();
-                return;
-              }
-              await C.importRemote(detail.definition, item.path, d.id, detail.contentSha256);
+              if (!['api', 'canvas'].includes(detail.format)) { r.error = t('workflowInvalid'); refresh(); return; }
+              await importDetail(detail, item.path, d.id);
             }, { class: 'quiet', disabled: blocked() || !fresh('workflows') })))
             : [h('div', { class: 'empty-text' }, pending ? t('readingWorkflows') : workflows ? t('noWorkflows') : t('syncWorkflowsHelp'))]));
         }

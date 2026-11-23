@@ -188,10 +188,13 @@ For ComfyUI, `list_workflows` returns saved local workflow metadata without bodi
 including name, stable ID, path, format, content hash and field-match candidates.
 It never fetches an unsynchronized body or returns default inputs. Use a unique
 remote name, exact relative path or returned stable ID with
-`generate_workflow_media`; duplicate names require the path or ID. Canvas remains
-preview-only. A remote API workflow runs from a temporary in-memory definition and
-is not added to the local workflow list. The request records its synchronized
-content hash, so a later synchronized change conflicts with the same request key.
+`generate_workflow_media`; duplicate names require the path or ID. Canvas workflows
+are converted inside the plugin only after `/object_info` proves all link and widget
+mappings. Uncertain or bypassed nodes remain preview-only and are never submitted.
+A successful Canvas conversion runs from a temporary in-memory definition and is
+not added to the local workflow list. The request records its synchronized content
+hash, so a later synchronized change conflicts with the same request key. Use
+`workflow_job` to inspect the original prompt ID or verified local result.
 Use `workflow_job` to inspect the original prompt ID or verified local result.
 Never submit a second prompt for an unknown job. Results are downloaded only
 through host binary-response support, then checked for the selected media

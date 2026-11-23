@@ -23,6 +23,10 @@ The Host binary request capability is maintained in PI-Desktop separately from t
 
 This patch makes structured Agent image-generation selection failures explicit tool errors. Multiple ready models without a saved default return `MODEL_SELECTION_REQUIRED` and do not submit a provider request; invalid explicit model references return `MODEL_UNAVAILABLE`. The source remains compatible with the published 0.7.0 workflow and tool set.
 
+## Version 0.7.4
+
+This patch saves API-format remote workflow imports directly into Local workflows, shows a clear saved result, and explains the Canvas-format import boundary in the connection editor. Remote definitions remain read-only.
+
 ## Version 0.7.3
 
 This release matches API-format ComfyUI node fields and output candidates, adds bilingual binding suggestions, and uploads scoped reference images through the Host binary request boundary before a single image-to-video prompt submission. Workflow inputs containing the saved ComfyUI credential are rejected before network I/O. The release candidate requires an executable API-format workflow and a Host with `binaryRequestBody` support for image-to-video.

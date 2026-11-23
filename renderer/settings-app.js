@@ -118,26 +118,32 @@
     resetDraft(); s.tab = 'connections'; s.defaultsDirty = false; s.defaults = A.clone(s.data.defaults); s.notice = null;
     s.resourceProfile = item.id; remote.select(item.id); render(); document.getElementById('resource-heading')?.focus();
   }
-  function importRemote(definition, path, profileId, contentSha256) {
+  async function importRemote(definition, path, profileId, contentSha256) {
     resetDraft(); s.tab = 'workflows'; s.screen = 'config'; s.isNew = true;
     s.draft = { ...A.newWorkflow(), name: path.split('/').pop().replace(/\.json$/i, '').slice(0, 128), definition: A.clone(definition), connectionId: profileId, origin: 'comfyui-remote', remote: { profileId, path, contentSha256: contentSha256 || '0'.repeat(64), syncedAt: new Date().toISOString() }, executable: false, outputs: [] };
-    s.jsonText = JSON.stringify(definition, null, 2); s.dirty = true;
-    s.notice = { text: t('workflowImported'), type: 'success' }; render(); document.getElementById('editor-heading')?.focus();
+    s.jsonText = JSON.stringify(definition, null, 2); s.dirty = true; s.listCategory = 'workflows';
+    let record;
+    try { record = A.parseWorkflow(s.draft, s.jsonText); }
+    catch (error) { s.notice = { text: error.message, type: 'error' }; render(); return false; }
+    const candidate = payload(); candidate.workflows.push(record);
+    return save(candidate, t('workflowImported'));
   }
   function payload() { return { expectedRevision: s.data.revision, profiles: s.data.profiles.map(A.cleanProfile), defaults: A.clone(s.data.defaults), workflows: A.clone(s.data.workflows) }; }
   async function save(candidate, success) {
-    if (s.busy || s.locked) return;
+    if (s.busy || s.locked) return false;
     s.busy = true; s.notice = null; const epoch = s.epoch; render();
     try {
       const data = await invoke('aimedia.save', candidate);
-      if (!s.alive || epoch !== s.epoch) return;
+      if (!s.alive || epoch !== s.epoch) return false;
       s.data = data; s.defaults = A.clone(data.defaults); s.defaultsDirty = false; resetDraft();
       setNotice(success, 'success');
+      return true;
     } catch (error) {
-      if (!s.alive || epoch !== s.epoch) return;
+      if (!s.alive || epoch !== s.epoch) return false;
       const knownRejection = ['INVALID_ARGUMENT', 'CONFLICT', 'NOT_FOUND', 'DISABLED', 'PERMISSION_DENIED', 'CREDENTIAL_UNAVAILABLE', 'CREDENTIAL_ERROR', 'CREDENTIAL_LEGACY', 'PLUGIN_RELOAD_REQUIRED'].includes(error.code);
       s.locked = error.code === 'CONFLICT' || !knownRejection;
       s.notice = { text: knownRejection ? A.errorText(error) : t('saveUncertain'), type: 'error' };
+      return false;
     } finally { if (s.alive && epoch <= s.epoch) { s.busy = false; render(); } }
   }
   function saveDraft() {

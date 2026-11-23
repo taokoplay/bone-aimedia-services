@@ -131,7 +131,21 @@ class SettingsBrowser(unittest.TestCase):
         expect(self.page.get_by_role("status")).to_contain_text("配置已保存")
 
     def edit(self, name):
-        self.page.locator('[data-service-row], [data-workflow-row]').filter(has_text=name).click()
+        service = self.page.locator('[data-service-row]').filter(has_text=name)
+        for category in ["服务链接", "生成模型", "音频生成"]:
+            if service.count(): break
+            category_button = self.page.get_by_role("button", name=category, exact=True)
+            if not category_button.count(): continue
+            category_button.click()
+            try:
+                expect(service).to_have_count(1, timeout=5000)
+            except AssertionError:
+                continue
+        if not service.count():
+            workflow_category = self.page.get_by_role("button", name="本地工作流", exact=True)
+            if workflow_category.count(): workflow_category.click()
+            service = self.page.locator('[data-workflow-row]').filter(has_text=name)
+        service.first.click()
         expect(self.page.get_by_role("button", name="返回列表")).to_be_visible()
 
     def add_workflow(self, connection="未绑定", name="Demo workflow"):
@@ -547,19 +561,17 @@ class SettingsBrowser(unittest.TestCase):
         expect(canvas).to_be_enabled()
         canvas.click()
         expect(self.page.get_by_text("仅供只读查看，不自动转换画布格式", exact=False)).to_be_visible()
-        expect(self.page.get_by_role("button", name="导入本地工作流草稿", exact=True)).to_be_disabled()
+        expect(self.page.get_by_role("button", name="导入到本地工作流", exact=True)).to_be_disabled()
         self.page.get_by_role("button", name="查看详情 demo.json", exact=True).click()
-        expect(self.page.get_by_role("button", name="导入本地工作流草稿", exact=True)).to_be_enabled()
+        expect(self.page.get_by_role("button", name="导入到本地工作流", exact=True)).to_be_enabled()
         self.assertFalse(self.page.locator("details.definition").evaluate("el=>el.open"))
         self.page.locator("details.definition summary").click()
         expect(self.page.locator("pre.code")).to_contain_text("CLIPTextEncode")
-        self.page.get_by_role("button", name="导入本地工作流草稿", exact=True).click()
-        expect(self.page.get_by_role("textbox", name="工作流名称", exact=True)).to_have_value("demo")
-        self.assertEqual(self.rpc("aimedia.get")["workflows"], [])
-        self.page.get_by_role("button", name="返回列表").click()
-        self.page.get_by_role("dialog").get_by_role("button", name="取消", exact=True).click()
-        self.save()
-        flow = self.rpc("aimedia.get")["workflows"][0]
+        self.page.get_by_role("button", name="导入到本地工作流", exact=True).click()
+        expect(self.page.get_by_role("status")).to_contain_text("已导入并保存")
+        expect(self.page.locator("[data-workflow-row]").filter(has_text="demo")).to_be_visible()
+        state = self.rpc("aimedia.get")
+        flow = state["workflows"][0]
         self.assertEqual(flow["definition"], FLOW)
         self.assertEqual(flow["bindings"], [])
         self.assertEqual(flow["connectionId"], profile["id"])
@@ -771,13 +783,15 @@ class SettingsBrowser(unittest.TestCase):
         self.page.get_by_role("button", name="同步工作流", exact=True).click()
         canvas = self.page.locator(".duty-snapshot-file-row").filter(has_text="canvas.json")
         canvas.get_by_role("button", name="导入", exact=True).click()
+        expect(self.page.get_by_role("alert")).to_contain_text("画布格式")
         expect(self.page.get_by_role("button", name="同步工作流", exact=True)).to_be_enabled()
         self.assertTrue(self.page.evaluate("stableForm.isConnected"))
         expect(self.page.get_by_role("textbox", name="配置名称", exact=True)).to_have_value("Inline workflows")
         demo = self.page.locator(".duty-snapshot-file-row").filter(has_text="demo.json")
         demo.get_by_role("button", name="导入", exact=True).click()
-        expect(self.page.get_by_role("textbox", name="工作流名称", exact=True)).to_have_value("demo")
-        self.assertEqual(self.rpc("aimedia.get")["workflows"], [])
+        expect(self.page.get_by_role("status")).to_contain_text("已导入并保存")
+        expect(self.page.locator("[data-workflow-row]").filter(has_text="demo")).to_be_visible()
+        self.assertEqual(len(self.rpc("aimedia.get")["workflows"]), 1)
 
     def test_31_resource_snapshots_survive_restart_offline_and_failed_sync(self):
         profile = self.create("comfyui", "Cached service", secret=False)
@@ -788,9 +802,9 @@ class SettingsBrowser(unittest.TestCase):
         self.page.get_by_role("button", name="同步工作流", exact=True).click()
         demo = self.page.locator(".duty-snapshot-file-row").filter(has_text="demo.json")
         demo.get_by_role("button", name="导入", exact=True).click()
-        expect(self.page.get_by_role("textbox", name="工作流名称", exact=True)).to_have_value("demo")
-        self.page.get_by_role("button", name="返回列表", exact=True).click()
-        self.confirm()
+        expect(self.page.get_by_role("status")).to_contain_text("已导入并保存")
+        expect(self.page.locator("[data-workflow-row]").filter(has_text="demo")).to_be_visible()
+        state = self.rpc("aimedia.get")
         state = self.rpc("aimedia.get")
         identity = {"profileId": profile["id"], "expectedRevision": state["revision"]}
         cached = self.rpc("aimedia.resourceSnapshot", identity)
@@ -798,7 +812,9 @@ class SettingsBrowser(unittest.TestCase):
         self.rpc("fixture.restart")
         before = self.rpc("fixture.metrics")["network"]
         self.page.reload()
-        self.edit("Cached service")
+        self.page.get_by_role("button", name="服务链接", exact=True).click()
+        self.page.locator('[data-service-row]').filter(has_text="Cached service").click()
+        expect(self.page.get_by_role("button", name="返回列表")).to_be_visible()
         expect(self.page.locator(".duty-snapshot-files")).to_contain_text("fixture-model.safetensors")
         expect(self.page.locator("[data-local-snapshot]")).to_contain_text("本地快照 · 上次同步")
         self.page.get_by_role("button", name="loras", exact=True).click()
@@ -810,9 +826,10 @@ class SettingsBrowser(unittest.TestCase):
         self.page.get_by_role("button", name="工作流", exact=True).click()
         demo = self.page.locator(".duty-snapshot-file-row").filter(has_text="demo.json")
         demo.get_by_role("button", name="导入", exact=True).click()
-        expect(self.page.get_by_role("textbox", name="工作流名称", exact=True)).to_have_value("demo")
+        expect(self.page.get_by_role("status")).to_contain_text("已导入并保存")
+        expect(self.page.locator("[data-workflow-row]").filter(has_text="demo")).to_have_count(2)
         self.assertEqual(self.rpc("fixture.metrics")["network"], before + 1)
-        self.assertEqual(self.rpc("aimedia.get")["workflows"], [])
+        self.assertEqual(len(self.rpc("aimedia.get")["workflows"]), 2)
 
     def test_32_snapshot_identity_change_does_not_reuse_old_resources(self):
         self.create("comfyui", "Cache identity", secret=False)
@@ -1015,7 +1032,7 @@ class SettingsBrowser(unittest.TestCase):
         self.tab("远端工作流")
         self.page.get_by_role("button", name="读取工作流", exact=True).click()
         self.page.get_by_role("button", name="查看详情 canvas.json", exact=True).click()
-        expect(self.page.get_by_role("button", name="导入本地工作流草稿", exact=True)).to_be_disabled()
+        expect(self.page.get_by_role("button", name="导入到本地工作流", exact=True)).to_be_disabled()
         self.page.locator("details.definition summary").click()
         expect(self.page.locator("pre.code")).to_contain_text("使用说明 🎬")
         expect(self.page.locator("pre.code")).to_contain_text("https://docs.example.test/workflows")
@@ -1034,7 +1051,7 @@ class SettingsBrowser(unittest.TestCase):
         finally:
             self.rpc("fixture.network", {"mode": "normal"})
         self.page.get_by_role("button", name="查看详情 demo.json", exact=True).click()
-        expect(self.page.get_by_role("button", name="导入本地工作流草稿", exact=True)).to_be_enabled()
+        expect(self.page.get_by_role("button", name="导入到本地工作流", exact=True)).to_be_enabled()
         self.assertEqual(self.rpc("aimedia.get"), before)
 
     def test_43_inline_workflow_error_retains_directory_and_can_retry(self):
@@ -1052,8 +1069,9 @@ class SettingsBrowser(unittest.TestCase):
         finally:
             self.rpc("fixture.network", {"mode": "normal"})
         demo.get_by_role("button", name="导入", exact=True).click()
-        expect(self.page.get_by_role("textbox", name="工作流名称", exact=True)).to_have_value("demo")
-        self.assertEqual(self.rpc("aimedia.get")["workflows"], [])
+        expect(self.page.get_by_role("status")).to_contain_text("已导入并保存")
+        expect(self.page.locator("[data-workflow-row]").filter(has_text="demo")).to_be_visible()
+        self.assertEqual(len(self.rpc("aimedia.get")["workflows"]), 1)
 
 
 if __name__ == "__main__":

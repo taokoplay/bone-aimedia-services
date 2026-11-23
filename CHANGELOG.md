@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.4
+
+- Import API-format ComfyUI workflows directly from the service editor into Local workflows and show a saved-status result.
+- Explain why canvas-format workflows cannot be imported, while preserving remote workflow read-only behavior and snapshot recovery.
+
 ## 0.7.3
 
 - Match ComfyUI API-format node fields and output candidates for prompt, dimensions, sampling, timing, frame and reference-image bindings.

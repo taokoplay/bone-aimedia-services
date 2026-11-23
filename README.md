@@ -3,7 +3,7 @@
 独立的 PI-Desktop 媒体服务插件，以 Agent 对话驱动已配置模型生图和 MiniMax 语音合成；页面用于配置服务和查看生成记录。
 
 - 插件 ID：`bone.aimedia.services`
-- 当前版本：`0.7.7`
+- 当前版本：`0.7.8`
 - 源码目录：`bone-aimedia-services`
 - 许可证：[AGPL-3.0-only](LICENSE)
 
@@ -47,7 +47,7 @@ Environmental sound effects and music remain unavailable. ComfyUI API workflows 
 | OpenAI images | Encrypted configuration, model discovery, GPT text generation and scoped reference-image edits through JSON or supported multipart; PNG preview/export | Masks, multiple outputs, URL result downloads |
 | 小米 MiMo | 配音模型、音色、格式；`GET /models` | 实际语音合成、克隆或音色设计 |
 | MiniMax | 模型／音色目录；已配置 speech 系列语音朗读、MP3 试听与下载 | 环境音效、音乐、图像与视频生成 |
-| ComfyUI | 系统与节点发现、模型目录、远端工作流同步、图片／视频／音频 API 工作流执行、校验结果和本地记录 | 画布工作流执行、任意 URL 下载、本地 ComfyUI 文件系统读取、运行中全局中断 |
+| ComfyUI | 系统与节点发现、模型目录、远端工作流同步、图片／视频／音频 API 工作流执行，以及经安全转换的 Canvas 工作流执行；校验结果和本地记录 | 任意 URL 下载、本地 ComfyUI 文件系统读取、运行中全局中断 |
 | 即梦 Dreamina | 一个 CLI 路径与模型配置入口 | 插件内启动 CLI、登录、额度查询和生成 |
 | LibTV | 一个官方 MCP 服务入口与接入说明 | 插件内 OAuth 登录和代理调用远程 MCP 工具 |
 
@@ -172,7 +172,7 @@ Agent 调用导出工具，并在授权工作区运行其固定解码命令，�
 
 ## 安装与权限
 
-Install `dist/bone.aimedia.services-0.7.7.piplug` in plugin management, or load the development directory and review the requested permissions.
+Install `dist/bone.aimedia.services-0.7.8.piplug` in plugin management, or load the development directory and review the requested permissions.
 插件启动即注册工具与技能，不需要先打开页面。已有有效配置后即可在 Agent 模式调用。
 当前安装的 PI-Desktop 0.21.0 已验证 Agent 模式下的新会话／下一轮工具发现。
 该版本的规划模式不会暴露插件声明的只读动作；插件图片块也不自动生成图片卡片。

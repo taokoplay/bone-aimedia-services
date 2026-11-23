@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "bone.aimedia.services",
   "name": "AI媒体生成服务",
-  "version": "0.7.7",
+  "version": "0.7.8",
   "description": "Agent-driven GPT images, scoped reference-image edits, MiniMax speech and validated ComfyUI workflow media, with encrypted configuration, project-aware records and original-file export.",
   "author": "taokoplay",
   "license": "AGPL-3.0-only",

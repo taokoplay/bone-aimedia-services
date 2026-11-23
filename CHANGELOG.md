@@ -1,4 +1,8 @@
 # Changelog
+## 0.7.8
+
+- Fix remote ComfyUI workflow reads by preserving path separators in `/userdata` requests while encoding each path segment safely.
+- Add a regression covering image-to-video reference upload and single-prompt submission through the corrected path.
 ## 0.7.7
 
 - Increase the in-plugin Canvas conversion `/object_info` response budget for large ComfyUI node libraries.

@@ -193,5 +193,5 @@ test("remote image-to-video uploads the staged reference before one prompt submi
   t.after(() => engine.dispose());
   const job = await engine.generate({ profileId: "comfy", remotePath: "video.json", kind: "video", requestKey: "remote-video-1", inputs: { prompt: "walk forward" }, referenceImages: [{ path: "bone-media/references/frame.png", sha256: frameSha256 }], waitMs: 1000 });
   assert.equal(job.state, "succeeded");
-  assert.deepEqual(calls.map(input => new URL(input.url).pathname), ["/userdata", "/userdata/workflows%2Fvideo.json", "/upload/image", "/prompt", "/history/remote-video-1", "/view"]);
+  assert.deepEqual(calls.map(input => new URL(input.url).pathname), ["/userdata", "/userdata/workflows/video.json", "/upload/image", "/prompt", "/history/remote-video-1", "/view"]);
 });

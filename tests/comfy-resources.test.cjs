@@ -35,7 +35,7 @@ test("browse user path lists folders, models, workflows and API detail with exac
     if (url.pathname === "/prefix/models") return response([folder]);
     if (url.pathname === `/prefix/models/${encodeURIComponent(folder)}`) return response(["nested/模型.safetensors"]);
     if (url.pathname === "/prefix/userdata") return response([fileInfo(), fileInfo("notes.txt")]);
-    if (url.pathname === `/prefix/userdata/${encodeURIComponent("workflows/nested/绘图.json")}`) return response(api());
+    if (url.pathname === `/prefix/userdata/workflows/nested/${encodeURIComponent("绘图.json")}`) return response(api());
     throw Error("Unexpected route");
   });
   const rawWorkflow = { "9": { class_type: "Raw", inputs: { text: "Configured raw workflow" } } };
@@ -50,7 +50,7 @@ test("browse user path lists folders, models, workflows and API detail with exac
   assert.equal(f.calls.length, 4);
   assert.deepEqual(f.calls.map(item => item.url), [
     "http://localhost:8188/prefix/models", `http://localhost:8188/prefix/models/${encodeURIComponent(folder)}`,
-    "http://localhost:8188/prefix/userdata?dir=workflows&recurse=true&full_info=true", `http://localhost:8188/prefix/userdata/${encodeURIComponent("workflows/nested/绘图.json")}`,
+    "http://localhost:8188/prefix/userdata?dir=workflows&recurse=true&full_info=true", `http://localhost:8188/prefix/userdata/workflows/nested/${encodeURIComponent("绘图.json")}`,
   ]);
   for (const call of f.calls) {
     assert.equal(call.method, "GET"); assert.equal(call.body, undefined); assert.equal(call.redirect, "error"); assert.equal(call.timeoutMs, 15000);

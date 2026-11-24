@@ -30,10 +30,10 @@
     svg.innerHTML = kind === 'audio' ? '<path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/>' : kind === 'video' ? '<rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 9 4-2v10l-4-2"/>' : '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>';
     return svg;
   }
-  A.recordsController = ({ state: s, disabled, allJobs, getJob, refresh, deleteRecords, listState, clearPreview, loadResult, previewView, previewKey }) => {
+  A.recordsController = ({ state: s, disabled, allJobs, getJob, regenerateRecord, refresh, deleteRecords, listState, clearPreview, loadResult, previewView, previewKey }) => {
     let alive = true, root = null, filter = 'all', selectedId = null, ticket = 0;
     const selectedIds = new Set(), rows = new Map(), filterButtons = new Map(), meta = new Map();
-    let dialog = null, parts = null, detailLoading = false, detailError = '', returnFocus = null, lastPreview = '';
+    let dialog = null, parts = null, detailLoading = false, detailError = '', regenerating = false, returnFocus = null, lastPreview = '';
     let count, unresolved, list, empty, error, refreshButton, selectAll, selectedCount, deleteSelectedButton;
     const live = () => alive && s.alive;
     const showing = id => live() && s.screen === 'records' && selectedId === id && Boolean(dialog?.open);
@@ -61,6 +61,15 @@
       if (!selectedJobs.length) return;
       if (!await A.confirm(t('deleteSelectedTitle'), t('deleteSelectedDescription', { p1: selectedJobs.length }), t('confirmDeleteSelected'))) return;
       if (await deleteRecords(selectedJobs)) { selectedIds.clear(); update(); }
+    }
+    async function regenerate() {
+      const job = selected();
+      if (!job || job.state !== 'failed' || typeof regenerateRecord !== 'function' || regenerating) return;
+      if (!await A.confirm(t('regenerateTitle'), t('regenerateDescription'), t('confirmRegenerate'))) return;
+      regenerating = true; updateDetails();
+      try {
+        if (await regenerateRecord(job)) { closeDetails(); await refresh(); }
+      } finally { regenerating = false; updateDetails(); }
     }
     function view() {
       if (!root) {
@@ -144,6 +153,7 @@
       if (dialog) return;
       const close = button('', () => closeDetails(), { class: 'record-dialog-close', 'aria-label': t('closeDetails'), autofocus: true });
       close.append(A.svgIcon('x', 20));
+      const regenerateButton = button(t('regenerate'), () => { void regenerate(); }, { class: 'record-regenerate-button primary', 'data-record-regenerate': '', hidden: true });
       const loading = h('p', { class: 'record-dialog-loading', role: 'status' }, t('loadingDetails'));
       const errorText = h('p', { class: 'generation-error', role: 'alert' });
       const retry = button(t('retry'), () => { close.focus({ preventScroll: true }); void readDetails(); }, { 'data-record-retry': '' });
@@ -169,8 +179,8 @@
           h('dl', { class: 'record-metadata record-technical' }, h('dt', {}, t('taskId')), id, h('dt', {}, t('requestHash')), hash)));
       const body = h('div', { class: 'record-dialog-body' }, loading, failure, content);
       dialog = h('dialog', { class: 'record-dialog', 'aria-label': t('generationDetails') },
-        h('header', { class: 'record-dialog-heading' }, h('h2', {}, t('generationDetails')), close), body);
-      parts = { close, loading, failure, errorText, retry, status, warning, jobError, finance, preview, prompt, promptLabel, id, hash, body, content };
+        h('header', { class: 'record-dialog-heading' }, h('h2', {}, t('generationDetails')), h('div', { class: 'record-dialog-heading-actions' }, regenerateButton, close)), body);
+      parts = { close, regenerateButton, loading, failure, errorText, retry, status, warning, jobError, finance, preview, prompt, promptLabel, id, hash, body, content };
       dialog.addEventListener('cancel', event => { event.preventDefault(); closeDetails(); });
       dialog.addEventListener('close', () => { if (!dialog.open && selectedId) closeDetails(); });
       dialog.addEventListener('keydown', event => {
@@ -226,11 +236,15 @@
       parts.failure.hidden = !detailError;
       parts.content.hidden = detailLoading || Boolean(detailError);
       parts.retry.disabled = disabled() || detailLoading;
+      parts.regenerateButton.hidden = true;
+      parts.regenerateButton.disabled = disabled() || detailLoading || regenerating;
       text(parts.errorText, detailError);
       if (detailLoading || detailError) return;
       const job = selected();
       if (!job) return;
       dialog.setAttribute('data-generation-job', job.id);
+      parts.regenerateButton.hidden = job.state !== 'failed';
+      parts.regenerateButton.disabled = disabled() || regenerating;
       badge(parts.status, job);
       const request = job.request, audio = job.kind === 'audio';
       const values = { [t('service')]: job.profileName, [t('model')]: request.modelId, [t('createdAt')]: job.createdAt,
@@ -264,7 +278,7 @@
     function closeDetails(restoreFocus = true) {
       const id = selectedId;
       selectedId = null; ticket++; detailLoading = false; detailError = ''; lastPreview = '';
-      if (id) clearPreview();
+      selectedId = null; ticket++; detailLoading = false; detailError = ''; regenerating = false; lastPreview = '';
       const scrollX = window.scrollX, scrollY = window.scrollY;
       if (dialog?.open) dialog.close();
       dialog?.remove(); document.documentElement.classList.remove('generation-dialog-open');

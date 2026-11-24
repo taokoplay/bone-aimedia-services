@@ -299,6 +299,21 @@ class RecordsBrowser(unittest.TestCase):
         expect(dialog.get_by_role("img", name="生成图片预览", exact=True)).to_be_visible()
         self.assertEqual(self.rpc("fixture.metrics")["network"], self.network)
 
+    def test_failed_detail_can_regenerate_with_same_parameters_and_keeps_original(self):
+        self.seed()
+        self.records()
+        before = self.rpc("fixture.metrics")["network"]
+        self.rpc("fixture.network", {"mode": "image-success"})
+        dialog = self.details("failed")
+        expect(dialog.get_by_role("button", name="重新生成", exact=True)).to_be_visible()
+        dialog.get_by_role("button", name="重新生成", exact=True).click()
+        confirm = self.page.get_by_role("dialog", name="重新生成此任务？", exact=True)
+        expect(confirm).to_be_visible()
+        confirm.get_by_role("button", name="重新生成", exact=True).click()
+        expect(self.row("failed")).to_have_count(1)
+        expect(self.page.locator("[data-image-job]")).to_have_count(8)
+        self.assertEqual(self.rpc("fixture.metrics")["network"], before + 1)
+
     def test_responsive_theme_visuals_and_scroll_restoration(self):
         self.seed()
         for n in range(12):

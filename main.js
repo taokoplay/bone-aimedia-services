@@ -36,7 +36,7 @@ function matchWorkflowInput(payload) {
 }
 function createPlugin(pi, createSecrets = createKeychainSecrets) {
 let settings = null, images = null, agentImages = null, audio = null, agentAudio = null, workflowMedia = null, workflowExporter = null, records = null;
-let version = "0.7.9";
+let version = "0.8.0";
 let registered = [];
 let registrationErrors = [];
 function safeFailure(failure) {
@@ -181,6 +181,7 @@ async function dispatchPanel(channel, payload) {
     case "aimedia.audio.list": return audioAccess("list", payload);
     case "aimedia.audio.read": return audioAccess("readResult", payload);
     case "aimedia.records.delete": return recordsAccess("delete", payload);
+    case "aimedia.records.regenerate": return recordsAccess("regenerate", payload);
     case "aimedia.records.list": return recordsAccess("list", payload);
     case "aimedia.records.get": return recordsAccess("get", payload);
     case "aimedia.records.read": return recordsAccess("read", payload);

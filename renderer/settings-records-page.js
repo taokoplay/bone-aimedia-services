@@ -11,7 +11,7 @@
     const disabled = () => deleting || s.legacyBackend || !s.data || s.busy;
     const preview = A.resultPreviewController({ live, disabled, showing: id => records.showing(id), paint: () => { if (visible()) records.update(); },
       read: (job, offset) => invoke('aimedia.records.read', { kind: job.kind, jobId: job.id, expectedSha256: job.result.sha256, offset }) });
-    const records = A.recordsController({ state: s, disabled, refresh, getJob, deleteRecords,
+    const records = A.recordsController({ state: s, disabled, refresh, getJob, regenerateRecord, deleteRecords,
       allJobs: () => [...jobs.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)),
       listState: () => ({ loading, error }), clearPreview: preview.clear, loadResult: preview.load, previewView: preview.view, previewKey: preview.key });
     function remember(job) {
@@ -57,6 +57,18 @@
         } finally { reads.delete(id); }
       })();
       reads.set(id, read); return read;
+    }
+    async function regenerateRecord(job) {
+      if (!job || !visible() || disabled()) return false;
+      const ticket = epoch;
+      try {
+        const result = await invoke('aimedia.records.regenerate', { kind: job.kind, jobId: job.id, confirm: true });
+        if (!visible() || ticket !== epoch || !result?.id) return false;
+        remember(result); return true;
+      } catch (failure) {
+        if (visible() && ticket === epoch) error = A.errorText(failure);
+        return false;
+      } finally { if (visible() && ticket === epoch) records.update(); }
     }
     async function deleteRecords(selected) {
       if (!selected.length || !visible() || disabled()) return false;

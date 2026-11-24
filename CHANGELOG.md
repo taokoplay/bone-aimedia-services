@@ -1,4 +1,8 @@
 # Changelog
+## 0.8.0
+
+- Add a confirmed Regenerate action to failed generation record details for image, speech and ComfyUI workflow tasks.
+- Preserve the original failed record while creating a new request with fresh request identity and refresh the local records view after submission.
 ## 0.7.9
 
 - Fall back to bounded per-node ComfyUI `/object_info/<class>` reads when the full node catalog returns a server error, while preserving complete mapping validation.

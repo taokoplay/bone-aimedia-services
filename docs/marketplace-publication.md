@@ -18,6 +18,10 @@ plain string. The installed PI-Desktop 0.21.0 validator requires a nonempty stri
 for command titles, while view titles already support complete locale objects.
 Changing the command title to an object would break installation on that client.
 The Host binary request capability is maintained in PI-Desktop separately from this plugin. Version 0.7.3 requires that capability for image-to-video reference uploads; older Hosts reject that upload path before network I/O while retaining other supported operations.
+## Version 0.8.0
+
+This feature adds a confirmed Regenerate action to failed generation record details. It creates a fresh request for image, speech or ComfyUI workflow tasks while keeping the original failed record and stable local history.
+
 ## Version 0.7.9
 
 This patch adds safe per-node Canvas metadata fallback for server-side full `/object_info` errors and records remote workflow preflight failures locally without submitting prompts or retrying stable requests.

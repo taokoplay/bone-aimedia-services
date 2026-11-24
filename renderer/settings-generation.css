@@ -66,6 +66,7 @@ html.generation-dialog-open { overflow:hidden; }
 .record-dialog::backdrop { background:#0009; }
 .record-dialog-heading { position:sticky; top:0; flex:none; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 24px; border-bottom:1px solid var(--border); background:var(--bg); }
 .record-dialog-heading h2 { font-size:16px; font-weight:600; }
+.record-dialog-heading-actions { display:flex; align-items:center; gap:8px; }
 .record-dialog-close { display:grid; place-items:center; min-height:32px; width:32px; padding:4px; border-color:transparent; color:var(--muted); }
 .record-dialog-body { overflow:auto; overscroll-behavior:contain; min-height:0; padding:24px; scrollbar-gutter:stable; }
 .record-dialog-loading, .record-dialog-failure { padding:40px 8px; color:var(--muted); font-size:13px; }
